@@ -2,6 +2,7 @@ package com.aivn.meow.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -136,6 +137,7 @@ private fun GlassChip(
             .clip(RoundedCornerShape(14.dp))
             .background(bg)
             .border(1.dp, stroke, RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -158,6 +160,7 @@ private fun PrRow(pr: PullRequest, onOpen: () -> Unit) {
     Row(
         modifier = Modifier
             .glassSurface(corner = 20.dp, fill = MeowColors.GlassSurface)
+            .clickable(onClick = onOpen)
             .padding(horizontal = 20.dp, vertical = 18.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
