@@ -1,0 +1,35 @@
+# Build outputs
+build/
+*/build/
+out/
+
+# Gradle
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# Kotlin
+.kotlin/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.fleet/
+
+# macOS
+.DS_Store
+
+# Local env / secrets
+.env
+.env.local
+local.properties
+
+# Logs
+*.log
+
+# Claude Code local settings
+.claude/
