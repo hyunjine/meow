@@ -14,6 +14,7 @@ data class PullRequest(
     val author: String,
     val authorInitials: String,
     val relativeTime: String,
+    val updatedAtIso: String,
     val isDraft: Boolean,
     val ci: CiStatus,
     val labels: List<Label>,
