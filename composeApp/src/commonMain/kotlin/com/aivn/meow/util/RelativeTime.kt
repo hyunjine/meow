@@ -2,6 +2,10 @@ package com.aivn.meow.util
 
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+
+private val KST = TimeZone.of("Asia/Seoul")
 
 fun relativeTime(fromIso: String, now: Instant = Clock.System.now()): String {
     val past = runCatching { Instant.parse(fromIso) }.getOrNull() ?: return ""
@@ -24,6 +28,10 @@ fun formatSyncLabel(iso: String, now: Instant = Clock.System.now()): String {
         secs < 86_400 -> "${secs / 3600}시간 전"
         else -> "${secs / 86_400}일 전"
     }
-    val local = past.toString().substringBefore('.').replace('T', ' ').trimEnd('Z')
-    return "$local · $relative"
+    val local = past.toLocalDateTime(KST)
+    val date = "${local.year}-${local.monthNumber.pad2()}-${local.dayOfMonth.pad2()}"
+    val time = "${local.hour.pad2()}:${local.minute.pad2()}"
+    return "$date $time · $relative"
 }
+
+private fun Int.pad2(): String = if (this < 10) "0$this" else "$this"
