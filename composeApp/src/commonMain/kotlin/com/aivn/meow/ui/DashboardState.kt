@@ -56,6 +56,14 @@ class DashboardViewModel(
         manualJob = scope.launch { fetchOnce(auto = false) }
     }
 
+    /** Realtime push 로 도착한 신규 PR 하나를 내부 seen set 에 반영 + 알림 emit. */
+    fun onRealtimeEvent(pr: PullRequest) {
+        val alreadySeen = seenInitialised && pr.url in seenIds
+        if (alreadySeen) return
+        seenIds = seenIds + pr.url
+        scope.launch { _newRequests.emit(listOf(pr)) }
+    }
+
     private suspend fun fetchOnce(auto: Boolean) {
         val prior = _state.value
         if (prior is DashboardUiState.Loaded) {
