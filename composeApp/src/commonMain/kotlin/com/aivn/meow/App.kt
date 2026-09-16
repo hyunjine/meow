@@ -33,6 +33,7 @@ fun App(
     config: AppConfig,
     githubClientFactory: (String) -> GithubClient,
     onOpenUrl: (String) -> Unit,
+    onNewRequests: (List<PullRequest>) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val viewModel = remember(config.token) {
@@ -42,6 +43,9 @@ fun App(
     }
 
     LaunchedEffect(viewModel) { viewModel.start() }
+    LaunchedEffect(viewModel) {
+        viewModel.newRequests.collect { onNewRequests(it) }
+    }
 
     val state by viewModel.state.collectAsState()
 
