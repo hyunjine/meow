@@ -13,7 +13,7 @@ data class GraphQlResponse<T>(
 )
 
 @Serializable
-data class GraphQlError(val message: String)
+data class GraphQlError(val message: String, val type: String? = null)
 
 @Serializable
 data class ReviewSearchData(
