@@ -107,6 +107,7 @@ private fun DashboardContent(
             DashboardHeader(
                 lastSyncLabel = formatSyncLabel(snapshot.fetchedAtIso),
                 userInitials = snapshot.viewerInitials,
+                avatarUrl = snapshot.avatarUrl,
                 modifier = Modifier.fillMaxWidth(),
             )
             StatCards(stats = stats, modifier = Modifier.fillMaxWidth())
