@@ -42,10 +42,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aivn.meow.data.DashboardSnapshot
+import com.aivn.meow.data.SectionResult
 import com.aivn.meow.model.PullRequest
+import com.aivn.meow.model.SectionItem
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
-import com.aivn.meow.ui.sections.SectionCard
+import com.aivn.meow.ui.sections.SectionRow
 import com.aivn.meow.util.formatKst
 import com.aivn.meow.util.formatSyncLabel
 import com.aivn.meow.util.relativeTime
@@ -76,7 +78,9 @@ private fun DashboardContent(
     onOpenUrl: (String) -> Unit,
 ) {
     var sortOption by remember { mutableStateOf(PrSortOption.OLDEST) }
-    // ↑/↓ · j/k 로 이동하는 키보드 포커스 인덱스
+    // 0 = 리뷰 대기 PR, 1.. = 보조 섹션. 앱은 항상 리뷰 대기 PR 탭으로 시작한다.
+    var selectedTab by remember { mutableStateOf(0) }
+    // ↑/↓ · j/k 로 이동하는 키보드 포커스 인덱스 (현재 탭 항목 기준)
     var selectedIndex by remember { mutableStateOf(0) }
     val focusRequester = remember { FocusRequester() }
 
@@ -92,9 +96,52 @@ private fun DashboardContent(
             }
         }
 
+    val sections = snapshot.sections
+    // '모두 확인' 으로 비운 섹션 id. 다음 로딩 결과가 오면 초기화된다.
+    var clearedSectionIds by remember(sections) { mutableStateOf(emptySet<String>()) }
+    fun itemsOf(result: SectionResult) = if (result.section.id in clearedSectionIds) emptyList() else result.items
+
+    val tabKeys = listOf(REVIEW_TAB_KEY) + sections.map { it.section.id }
+    val tabUrls = listOf(prs.map { it.url }) + sections.map { result -> itemsOf(result).map { it.url } }
+    val tabIndex = selectedTab.coerceIn(0, tabKeys.lastIndex)
+    val currentSection = sections.getOrNull(tabIndex - 1)
+    val currentUrls = tabUrls[tabIndex]
+
+    // 탭별로 마지막으로 본 항목 url (메모리만). 탭의 첫 정상 결과와 선택 중인 탭은 본 것으로 기록한다.
+    var seenUrls by remember { mutableStateOf(emptyMap<String, Set<String>>()) }
+    LaunchedEffect(tabUrls, tabIndex) {
+        seenUrls = seenUrls + tabKeys.indices
+            .filter { i ->
+                val loaded = i == 0 || sections[i - 1].errorMessage == null
+                i == tabIndex || (tabKeys[i] !in seenUrls && loaded)
+            }
+            .associate { i -> tabKeys[i] to tabUrls[i].toSet() }
+    }
+    val tabs = tabKeys.indices.map { i ->
+        val seen = seenUrls[tabKeys[i]]
+        TabChipInfo(
+            label = if (i == 0) "리뷰 대기 PR" else sections[i - 1].section.tabLabel,
+            count = when {
+                i == 0 -> prs.size
+                sections[i - 1].section.id in clearedSectionIds -> 0
+                else -> sections[i - 1].totalCount
+            },
+            hasNew = i != tabIndex && seen != null && tabUrls[i].any { it !in seen },
+        )
+    }
+
+    fun selectTab(index: Int) {
+        selectedTab = index
+        selectedIndex = 0
+    }
+
+    fun openSelected() {
+        if (tabIndex == 0) prs.getOrNull(selectedIndex)?.let(onOpenPr) else currentUrls.getOrNull(selectedIndex)?.let(onOpenUrl)
+    }
+
     // 정렬 · 새로고침으로 목록이 줄어들면 선택 인덱스를 유효 범위로 맞춘다
-    LaunchedEffect(prs.size) {
-        selectedIndex = selectedIndex.coerceIn(0, (prs.size - 1).coerceAtLeast(0))
+    LaunchedEffect(currentUrls.size) {
+        selectedIndex = selectedIndex.coerceIn(0, (currentUrls.size - 1).coerceAtLeast(0))
     }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
@@ -132,17 +179,23 @@ private fun DashboardContent(
             .focusable()
             .onPreviewKeyEvent { keyEvent ->
                 if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                // ⌘1~⌘9 탭 전환
+                val shortcutTab = TabShortcutKeys.indexOf(keyEvent.key)
+                if (keyEvent.isMetaPressed && shortcutTab in tabKeys.indices) {
+                    selectTab(shortcutTab)
+                    return@onPreviewKeyEvent true
+                }
                 when (keyEvent.key) {
                     Key.DirectionDown, Key.J -> {
-                        if (prs.isNotEmpty()) selectedIndex = (selectedIndex + 1).coerceAtMost(prs.lastIndex)
+                        if (currentUrls.isNotEmpty()) selectedIndex = (selectedIndex + 1).coerceAtMost(currentUrls.lastIndex)
                         true
                     }
                     Key.DirectionUp, Key.K -> {
-                        if (prs.isNotEmpty()) selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
+                        if (currentUrls.isNotEmpty()) selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
                         true
                     }
                     Key.Enter, Key.NumPadEnter -> {
-                        prs.getOrNull(selectedIndex)?.let(onOpenPr)
+                        openSelected()
                         true
                     }
                     Key.R -> {
@@ -161,9 +214,10 @@ private fun DashboardContent(
     ) {
         Column(
             modifier = Modifier
+                .padding(horizontal = 24.dp)
                 .fillMaxWidth()
-                .widthIn(max = 1440.dp)
-                .padding(horizontal = 40.dp, vertical = 40.dp),
+                .widthIn(max = 960.dp)
+                .padding(vertical = 40.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             DashboardHeader(
@@ -176,18 +230,91 @@ private fun DashboardContent(
             state.refreshError?.let { failure ->
                 RefreshErrorBanner(failure = failure, onRetry = onRefresh, modifier = Modifier.fillMaxWidth())
             }
-            PrListCard(
-                pullRequests = prs,
-                sortOption = sortOption,
-                onRefresh = onRefresh,
-                onSortSelect = { sortOption = it },
-                onOpenPr = onOpenPr,
+            DashboardTabBar(
+                tabs = tabs,
+                selectedIndex = tabIndex,
+                onSelect = ::selectTab,
                 modifier = Modifier.fillMaxWidth(),
-                selectedIndex = selectedIndex,
-            )
-            // 보조 섹션은 ui/sections/DashboardSections.kt 에 등록된 순서대로 렌더링된다.
-            snapshot.sections.forEach { result ->
-                SectionCard(result = result, onOpenUrl = onOpenUrl, modifier = Modifier.fillMaxWidth())
+            ) {
+                if (tabIndex == 0) SortChip(sortOption = sortOption, onSortSelect = { sortOption = it })
+                currentSection?.section?.headerAction?.let { action ->
+                    GlassChip(
+                        text = action.label,
+                        onClick = {
+                            action.perform()
+                            clearedSectionIds = clearedSectionIds + currentSection.section.id
+                        },
+                    )
+                }
+                GlassChip(
+                    text = "새로고침",
+                    leading = { Icon(Icons.Default.Refresh, null, tint = MeowColors.TextPrimary, modifier = Modifier.size(14.dp)) },
+                    onClick = onRefresh,
+                )
+            }
+            if (currentSection == null) {
+                if (prs.isEmpty()) {
+                    EmptyStateCard("리뷰 요청이 없습니다 🎉", "여유로운 하루 보내세요", Modifier.fillMaxWidth())
+                } else {
+                    TwoColumnGrid(prs, Modifier.fillMaxWidth()) { index, pr, cellModifier ->
+                        PrRow(pr = pr, isSelected = index == selectedIndex, onOpen = { onOpenPr(pr) }, modifier = cellModifier)
+                    }
+                }
+            } else {
+                SectionTabContent(
+                    result = currentSection,
+                    items = itemsOf(currentSection),
+                    selectedIndex = selectedIndex,
+                    onOpenUrl = onOpenUrl,
+                )
+            }
+        }
+    }
+}
+
+/** ⌘ 와 함께 눌러 탭을 고르는 숫자 키. 인덱스 = 탭 인덱스. */
+private val TabShortcutKeys = listOf(
+    Key.One, Key.Two, Key.Three, Key.Four, Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine,
+)
+
+/** 새 항목 점 추적에 쓰는 리뷰 대기 PR 탭 키. 섹션 탭은 섹션 id 를 쓴다. */
+private const val REVIEW_TAB_KEY = "review-requests"
+
+@Composable
+private fun SectionTabContent(
+    result: SectionResult,
+    items: List<SectionItem>,
+    selectedIndex: Int,
+    onOpenUrl: (String) -> Unit,
+) {
+    val section = result.section
+    when {
+        // 첫 로딩부터 실패해 보여줄 목록이 없으면 오류만 카드로 표시
+        items.isEmpty() && result.errorMessage != null -> EmptyStateCard(
+            title = "불러오지 못했어요",
+            hint = result.errorMessage,
+            modifier = Modifier.fillMaxWidth(),
+            titleColor = MeowColors.Error,
+        )
+        items.isEmpty() -> EmptyStateCard(section.emptyTitle, section.emptyHint, Modifier.fillMaxWidth())
+        else -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            result.errorMessage?.let { message ->
+                Text(
+                    text = "불러오지 못했어요 · $message",
+                    color = MeowColors.Error,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            TwoColumnGrid(items, Modifier.fillMaxWidth()) { index, item, cellModifier ->
+                SectionRow(
+                    item = item,
+                    isSelected = index == selectedIndex,
+                    onOpen = { onOpenUrl(item.url) },
+                    modifier = cellModifier,
+                )
             }
         }
     }
