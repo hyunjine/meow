@@ -1,5 +1,6 @@
 package com.aivn.meow.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -12,10 +13,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,6 +32,7 @@ fun DashboardHeader(
     lastSyncLabel: String,
     userInitials: String,
     modifier: Modifier = Modifier,
+    avatarUrl: String? = null,
 ) {
     Row(
         modifier = modifier
@@ -105,20 +111,40 @@ fun DashboardHeader(
                 }
             }
 
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(MeowColors.Brand),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = userInitials,
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
+            UserAvatar(avatarUrl = avatarUrl, initials = userInitials)
+        }
+    }
+}
+
+/** 44dp 원형 아바타. 로딩 중이거나 실패하면 이니셜 원으로 폴백. */
+@Composable
+private fun UserAvatar(avatarUrl: String?, initials: String) {
+    val avatar by produceState<ImageBitmap?>(initialValue = null, avatarUrl) {
+        value = avatarUrl?.takeIf { it.isNotBlank() }?.let { loadImageBitmap(it) }
+    }
+
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(MeowColors.Brand),
+        contentAlignment = Alignment.Center,
+    ) {
+        val bitmap = avatar
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap,
+                contentDescription = "GitHub 아바타",
+                modifier = Modifier.size(44.dp),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            Text(
+                text = initials,
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+            )
         }
     }
 }
