@@ -89,6 +89,33 @@ export MEOW_SUPABASE_ANON_KEY=<anon key>
 
 앱을 재실행하면 자동으로 Realtime 채널 구독을 시작합니다. Realtime 이 없으면 기존 60초 폴링만 동작하고, 있으면 폴링 + Realtime 이 함께 돌면서 알림이 중복되지 않도록 URL 셋으로 dedup 합니다.
 
+## 4~6단계 자동화 스크립트
+
+1~3단계(프로젝트 생성, link, `db push`)를 마쳤다면 `supabase/scripts/setup.sh` 로
+4~6단계(Edge Function 배포, 6개 저장소 웹훅 등록, 앱 설정 파일 작성)를 한 번에 진행할 수 있습니다.
+단계별로 무엇을 할지 출력한 뒤 y/N 확인을 받고, 이미 같은 URL 의 웹훅이 등록된 저장소는 건너뜁니다.
+
+```bash
+supabase/scripts/setup.sh \
+  --project-ref <프로젝트 ref> \
+  --anon-key <anon key> \
+  --generate-secret
+```
+
+주요 옵션 (값은 `--project-ref` 대신 `PROJECT_REF` 같은 환경변수로도 지정 가능):
+
+| 옵션 | 설명 |
+| --- | --- |
+| `--project-ref` | Supabase 프로젝트 ref |
+| `--anon-key` | Supabase anon key |
+| `--webhook-secret` | GitHub 웹훅 시크릿 (생략 시 `--generate-secret` 로 자동 생성) |
+| `--owner` | 웹훅을 등록할 GitHub owner (기본: `hyunjine`) |
+| `--repos` | 콤마로 구분한 대상 저장소 목록 (기본: 위 6개) |
+| `--skip-deploy` / `--skip-webhooks` / `--skip-config` | 해당 단계 건너뛰기 |
+
+`--help` 로 전체 옵션을 확인할 수 있습니다. 이 스크립트는 `supabase`, `gh` CLI 로그인이 되어 있어야
+동작하며, 시크릿/anon key 를 파일에 저장하지 않고 그 실행 범위 안에서만 사용합니다.
+
 ## 7. 동작 확인
 
 1. 다른 계정으로 위 6개 저장소 중 하나에 PR 생성 → hyunjine 에게 리뷰 요청
