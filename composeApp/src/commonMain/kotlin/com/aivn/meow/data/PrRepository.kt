@@ -53,7 +53,8 @@ private fun PullRequestNode.toDomain(): PullRequest {
     val ci = when (commits.nodes.firstOrNull()?.commit?.statusCheckRollup?.state) {
         "SUCCESS" -> CiStatus.Pass
         "FAILURE", "ERROR" -> CiStatus.Fail
-        null -> CiStatus.Pending
+        // CI 체크 자체가 없는 PR: MyPrStatusSection 과 동일하게 칩을 숨긴다.
+        null -> CiStatus.None
         else -> CiStatus.Pending
     }
     val labels = labels.nodes.take(4).map { Label(text = it.name, color = hexColorOrFallback(it.color, repoColor)) }

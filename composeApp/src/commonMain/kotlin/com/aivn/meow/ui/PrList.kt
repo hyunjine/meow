@@ -344,6 +344,8 @@ private fun CiChip(status: CiStatus) {
         CiStatus.Pass -> "CI · 통과" to MeowColors.Success
         CiStatus.Fail -> "CI · 실패" to MeowColors.Error
         CiStatus.Pending -> "CI · 진행중" to MeowColors.Warning
+        // CI 체크가 아예 없는 PR: MyPrStatusSection 과 동일하게 칩을 숨긴다.
+        CiStatus.None -> return
     }
     Row(
         modifier = Modifier
