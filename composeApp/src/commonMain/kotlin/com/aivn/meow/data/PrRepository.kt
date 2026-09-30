@@ -7,6 +7,9 @@ import com.aivn.meow.model.CiStatus
 import com.aivn.meow.model.Label
 import com.aivn.meow.model.PullRequest
 import com.aivn.meow.theme.MeowColors
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlin.math.abs
 
 data class DashboardSnapshot(
@@ -17,14 +20,21 @@ data class DashboardSnapshot(
     val totalOpen: Int,
     val overdue48h: Int,
     val fetchedAtIso: String,
+    /** 보조 섹션 결과. 섹션 실패는 여기 [SectionResult.errorMessage] 로만 드러난다. */
+    val sections: List<SectionResult> = emptyList(),
 )
 
-class PrRepository(private val client: GithubClient) {
-    suspend fun load(org: String, nowIsoUtc: String): DashboardSnapshot {
+class PrRepository(
+    private val client: GithubClient,
+    private val sections: List<DashboardSection> = emptyList(),
+) {
+    suspend fun load(org: String, nowIsoUtc: String): DashboardSnapshot = coroutineScope {
+        // 섹션은 리뷰 요청 쿼리와 병렬로 받는다. loadResult 가 예외를 삼키므로 섹션 실패는 전파되지 않는다.
+        val sectionJobs = sections.map { section -> async { section.loadResult(client, org) } }
         val data = client.fetchReviewRequests(org)
         val prs = data.search.nodes.map { it.toDomain() }
         val overdue = prs.count { isOverdue(nowIsoUtc, it.updatedAtIso) }
-        return DashboardSnapshot(
+        DashboardSnapshot(
             viewerLogin = data.viewer.login,
             viewerInitials = initialsFrom(data.viewer.name, data.viewer.login),
             avatarUrl = data.viewer.avatarUrl,
@@ -32,6 +42,7 @@ class PrRepository(private val client: GithubClient) {
             totalOpen = data.search.issueCount,
             overdue48h = overdue,
             fetchedAtIso = nowIsoUtc,
+            sections = sectionJobs.awaitAll(),
         )
     }
 }
@@ -73,12 +84,12 @@ private val palette = listOf(
     MeowColors.Error,
 )
 
-private fun colorForRepo(repo: String): Color {
+internal fun colorForRepo(repo: String): Color {
     val hash = repo.fold(0) { acc, c -> acc * 31 + c.code }
     return palette[abs(hash) % palette.size]
 }
 
-private fun hexColorOrFallback(hex: String, fallback: Color): Color {
+internal fun hexColorOrFallback(hex: String, fallback: Color): Color {
     val v = hex.trim().removePrefix("#")
     if (v.length != 6) return fallback
     val r = v.substring(0, 2).toIntOrNull(16) ?: return fallback
@@ -87,7 +98,7 @@ private fun hexColorOrFallback(hex: String, fallback: Color): Color {
     return Color(r / 255f, g / 255f, b / 255f)
 }
 
-private fun initialsFrom(name: String?, login: String): String {
+internal fun initialsFrom(name: String?, login: String): String {
     val source = (name?.takeIf { it.isNotBlank() } ?: login).trim()
     val parts = source.split(Regex("[\\s._-]+")).filter { it.isNotBlank() }
     return when {
