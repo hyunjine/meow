@@ -18,8 +18,14 @@ interface DashboardSection {
     val emptyTitle: String
     val emptyHint: String
 
+    /** 헤더 오른쪽에 붙는 선택적 동작. 기본은 없음. */
+    val headerAction: SectionHeaderAction? get() = null
+
     suspend fun load(client: GithubClient, org: String): SectionData
 }
+
+/** 섹션 헤더의 작은 텍스트 버튼. 누르면 [perform] 후 다음 로딩 전까지 카드의 항목을 비운다. */
+class SectionHeaderAction(val label: String, val perform: () -> Unit)
 
 data class SectionData(
     val items: List<SectionItem>,
