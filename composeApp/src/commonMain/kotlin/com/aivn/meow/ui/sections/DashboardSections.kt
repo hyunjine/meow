@@ -14,7 +14,7 @@ import com.aivn.meow.data.DashboardSection
 val DashboardSections: List<DashboardSection> = listOf(
     AssignedIssuesSection,
 
-    // #14 MentionsSection,
+    MentionsSection,
 
     // #15 MyPrStatusSection,
 
