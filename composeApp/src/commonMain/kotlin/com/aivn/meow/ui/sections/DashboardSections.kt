@@ -12,6 +12,8 @@ import com.aivn.meow.data.DashboardSection
  *    (병렬 작업 시 merge 충돌을 피하려고 슬롯 사이에 빈 줄을 둔다. 빈 줄은 지우지 말 것.)
  */
 val DashboardSections: List<DashboardSection> = listOf(
+    AssignedIssuesSection,
+
     // #14 MentionsSection,
 
     // #15 MyPrStatusSection,
