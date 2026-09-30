@@ -18,7 +18,12 @@ import kotlinx.datetime.Clock
 
 sealed interface DashboardUiState {
     data object Loading : DashboardUiState
-    data class Loaded(val snapshot: DashboardSnapshot, val refreshing: Boolean = false) : DashboardUiState
+    /** [refreshError] 가 있으면 마지막 성공 데이터를 보여주는 중 새로고침이 실패한 상태. */
+    data class Loaded(
+        val snapshot: DashboardSnapshot,
+        val refreshing: Boolean = false,
+        val refreshError: String? = null,
+    ) : DashboardUiState
     data class Error(val message: String) : DashboardUiState
 }
 
@@ -77,13 +82,13 @@ class DashboardViewModel(
                 _state.value = DashboardUiState.Loaded(snapshot, refreshing = false)
             }
             .onFailure { throwable ->
-                // Auto ticks shouldn't clobber a good snapshot with an error.
-                if (auto && prior is DashboardUiState.Loaded) {
-                    _state.value = prior.copy(refreshing = false)
-                } else {
-                    _state.value = DashboardUiState.Error(
-                        throwable.message ?: throwable::class.simpleName ?: "unknown error",
-                    )
+                val message = throwable.message ?: throwable::class.simpleName ?: "unknown error"
+                // 이미 목록이 있으면 오류 화면으로 덮지 않고 마지막 성공 데이터를 유지.
+                // 자동 새로고침 실패는 조용히 넘기고, 수동 새로고침 실패만 배너로 알린다.
+                _state.value = when {
+                    prior !is DashboardUiState.Loaded -> DashboardUiState.Error(message)
+                    auto -> prior.copy(refreshing = false)
+                    else -> prior.copy(refreshing = false, refreshError = message)
                 }
             }
     }

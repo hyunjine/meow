@@ -28,11 +28,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aivn.meow.data.DashboardSnapshot
 import com.aivn.meow.model.PullRequest
 import com.aivn.meow.theme.MeowColors
+import com.aivn.meow.theme.glassSurface
 import com.aivn.meow.util.formatSyncLabel
 import com.aivn.meow.util.relativeTime
 
@@ -117,6 +119,9 @@ private fun DashboardContent(
                 modifier = Modifier.fillMaxWidth(),
             )
             StatCards(stats = stats, modifier = Modifier.fillMaxWidth())
+            state.refreshError?.let { message ->
+                RefreshErrorBanner(message = message, onRetry = onRefresh, modifier = Modifier.fillMaxWidth())
+            }
             PrListCard(
                 pullRequests = prs,
                 sortLabel = sortLabel,
@@ -177,6 +182,36 @@ private fun CenteredError(message: String, onRetry: () -> Unit) {
             fontSize = 12.sp,
         )
         RetryButton(onClick = onRetry, modifier = Modifier.padding(top = 20.dp))
+    }
+}
+
+/** 목록은 유지한 채 새로고침 실패 사실과 재시도를 안내하는 배너. */
+@Composable
+private fun RefreshErrorBanner(message: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .glassSurface(corner = 20.dp, borderColor = MeowColors.Error.copy(alpha = 0.45f), elevation = 4.dp)
+            .background(MeowColors.Error.copy(alpha = 0.06f))
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = "새로고침에 실패했어요 · 마지막으로 불러온 목록을 표시 중이에요",
+                color = MeowColors.Error,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = message,
+                color = MeowColors.TextSecondary,
+                fontSize = 12.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        RetryButton(onClick = onRetry)
     }
 }
 
