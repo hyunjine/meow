@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -56,10 +57,44 @@ fun PrListCard(
         )
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            pullRequests.forEach { pr ->
-                PrRow(pr = pr, onOpen = { onOpenPr(pr) })
+            if (pullRequests.isEmpty()) {
+                EmptyPrState(includeDraft = includeDraft)
+            } else {
+                pullRequests.forEach { pr ->
+                    PrRow(pr = pr, onOpen = { onOpenPr(pr) })
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun EmptyPrState(includeDraft: Boolean) {
+    // 리뷰 요청 PR 이 0건일 때 표시되는 빈 상태
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 36.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text = "리뷰 요청이 없습니다 🎉",
+            color = MeowColors.TextPrimary,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            // Draft 필터로 인해 0건이 된 경우를 자연스럽게 안내
+            text = if (includeDraft) {
+                "여유로운 하루 보내세요"
+            } else {
+                "Draft PR 은 숨겨져 있어요 · 'Draft 포함'을 켜면 보일 수 있어요"
+            },
+            color = MeowColors.TextTertiary,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+        )
     }
 }
 
