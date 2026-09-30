@@ -326,7 +326,7 @@ private fun PrRow(pr: PullRequest, isSelected: Boolean, onOpen: () -> Unit) {
 }
 
 @Composable
-private fun PillChip(text: String, color: Color) {
+internal fun PillChip(text: String, color: Color) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(999.dp))
@@ -360,6 +360,6 @@ private fun CiChip(status: CiStatus) {
 }
 
 @Composable
-private fun DotSeparator() {
+internal fun DotSeparator() {
     Text(text = "·", color = MeowColors.TextTertiary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
 }

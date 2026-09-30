@@ -2,6 +2,7 @@ package com.aivn.meow.ui
 
 import com.aivn.meow.data.DashboardSnapshot
 import com.aivn.meow.data.PrRepository
+import com.aivn.meow.data.keepPreviousOnError
 import com.aivn.meow.github.GithubApiException
 import com.aivn.meow.model.PullRequest
 import kotlinx.coroutines.CoroutineScope
@@ -113,7 +114,9 @@ class DashboardViewModel(
             _state.value = DashboardUiState.Loading
         }
         runCatching { repository.load(org, Clock.System.now().toString()) }
-            .onSuccess { snapshot ->
+            .onSuccess { loaded ->
+                val previousSections = (prior as? DashboardUiState.Loaded)?.snapshot?.sections.orEmpty()
+                val snapshot = loaded.copy(sections = loaded.sections.keepPreviousOnError(previousSections))
                 emitDiff(snapshot)
                 _state.value = DashboardUiState.Loaded(snapshot, refreshing = false)
             }

@@ -29,6 +29,7 @@ import com.aivn.meow.theme.MeowTheme
 import com.aivn.meow.ui.Dashboard
 import com.aivn.meow.ui.DashboardUiState
 import com.aivn.meow.ui.DashboardViewModel
+import com.aivn.meow.ui.sections.DashboardSections
 
 @Composable
 fun App(
@@ -40,7 +41,7 @@ fun App(
     val scope = rememberCoroutineScope()
     val viewModel = remember(config.token) {
         val client = githubClientFactory(config.token)
-        val repository = PrRepository(client)
+        val repository = PrRepository(client, DashboardSections)
         DashboardViewModel(repository, config.org, scope)
     }
     val realtimeService = remember(config.supabase) {
@@ -68,6 +69,7 @@ fun App(
             state = state,
             onRefresh = { viewModel.refresh() },
             onOpenPr = { pr: PullRequest -> onOpenUrl(pr.url) },
+            onOpenUrl = onOpenUrl,
         )
     }
 }

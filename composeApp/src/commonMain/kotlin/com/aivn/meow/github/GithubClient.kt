@@ -1,7 +1,6 @@
 package com.aivn.meow.github
 
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
 import io.ktor.client.engine.HttpClientEngineFactory
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
@@ -17,6 +16,7 @@ import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 import kotlin.time.Duration.Companion.seconds
 
@@ -37,17 +37,24 @@ class GithubClient(
         }
     }
 
-    suspend fun fetchReviewRequests(org: String): ReviewSearchData {
-        val query = buildQuery(org)
+    suspend fun fetchReviewRequests(org: String): ReviewSearchData =
+        query(buildQuery(org), ReviewSearchData.serializer())
+
+    /** GraphQL 쿼리를 실행하고 `data` 를 [serializer] 로 디코딩한다. 오류 분류는 [GithubApiException] 참고. */
+    suspend fun <T> query(
+        query: String,
+        serializer: KSerializer<T>,
+        variables: Map<String, String> = emptyMap(),
+    ): T {
         val response: HttpResponse = http.post(GRAPHQL_ENDPOINT) {
             header(HttpHeaders.Authorization, "Bearer $token")
             contentType(ContentType.Application.Json)
-            setBody(GraphQlRequest(query = query))
+            setBody(GraphQlRequest(query = query, variables = variables))
         }
         if (!response.status.isSuccess()) {
             throw httpFailure(response)
         }
-        val body: GraphQlResponse<ReviewSearchData> = response.body()
+        val body = json.decodeFromString(GraphQlResponse.serializer(serializer), response.bodyAsText())
         val errors = body.errors
         if (!errors.isNullOrEmpty()) {
             val detail = "GitHub GraphQL error: ${errors.joinToString { it.message }}"

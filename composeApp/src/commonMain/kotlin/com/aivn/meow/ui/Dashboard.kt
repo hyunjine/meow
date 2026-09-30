@@ -45,6 +45,7 @@ import com.aivn.meow.data.DashboardSnapshot
 import com.aivn.meow.model.PullRequest
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
+import com.aivn.meow.ui.sections.SectionCard
 import com.aivn.meow.util.formatKst
 import com.aivn.meow.util.formatSyncLabel
 import com.aivn.meow.util.relativeTime
@@ -54,6 +55,7 @@ fun Dashboard(
     state: DashboardUiState,
     onRefresh: () -> Unit,
     onOpenPr: (PullRequest) -> Unit,
+    onOpenUrl: (String) -> Unit,
 ) {
     Box(
         modifier = Modifier.fillMaxSize().background(MeowColors.Background),
@@ -61,7 +63,7 @@ fun Dashboard(
         when (state) {
             is DashboardUiState.Loading -> CenteredLoading("PR 목록을 불러오는 중…")
             is DashboardUiState.Error -> CenteredError(state.failure, onRefresh)
-            is DashboardUiState.Loaded -> DashboardContent(state, onRefresh, onOpenPr)
+            is DashboardUiState.Loaded -> DashboardContent(state, onRefresh, onOpenPr, onOpenUrl)
         }
     }
 }
@@ -71,6 +73,7 @@ private fun DashboardContent(
     state: DashboardUiState.Loaded,
     onRefresh: () -> Unit,
     onOpenPr: (PullRequest) -> Unit,
+    onOpenUrl: (String) -> Unit,
 ) {
     var includeDraft by remember { mutableStateOf(true) }
     var sortOption by remember { mutableStateOf(PrSortOption.OLDEST) }
@@ -186,6 +189,10 @@ private fun DashboardContent(
                 modifier = Modifier.fillMaxWidth(),
                 selectedIndex = selectedIndex,
             )
+            // 보조 섹션은 ui/sections/DashboardSections.kt 에 등록된 순서대로 렌더링된다.
+            snapshot.sections.forEach { result ->
+                SectionCard(result = result, onOpenUrl = onOpenUrl, modifier = Modifier.fillMaxWidth())
+            }
         }
     }
 }
