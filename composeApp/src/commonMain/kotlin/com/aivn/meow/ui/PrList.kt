@@ -15,9 +15,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,10 +39,10 @@ import com.aivn.meow.theme.glassSurface
 @Composable
 fun PrListCard(
     pullRequests: List<PullRequest>,
-    sortLabel: String,
+    sortOption: PrSortOption,
     includeDraft: Boolean,
     onRefresh: () -> Unit,
-    onSortClick: () -> Unit,
+    onSortSelect: (PrSortOption) -> Unit,
     onToggleDraft: () -> Unit,
     onOpenPr: (PullRequest) -> Unit,
     modifier: Modifier = Modifier,
@@ -49,10 +55,10 @@ fun PrListCard(
     ) {
         PrToolbar(
             count = pullRequests.size,
-            sortLabel = sortLabel,
+            sortOption = sortOption,
             includeDraft = includeDraft,
             onRefresh = onRefresh,
-            onSortClick = onSortClick,
+            onSortSelect = onSortSelect,
             onToggleDraft = onToggleDraft,
         )
 
@@ -101,10 +107,10 @@ private fun EmptyPrState(includeDraft: Boolean) {
 @Composable
 private fun PrToolbar(
     count: Int,
-    sortLabel: String,
+    sortOption: PrSortOption,
     includeDraft: Boolean,
     onRefresh: () -> Unit,
-    onSortClick: () -> Unit,
+    onSortSelect: (PrSortOption) -> Unit,
     onToggleDraft: () -> Unit,
 ) {
     Row(
@@ -141,7 +147,7 @@ private fun PrToolbar(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            GlassChip(text = "정렬: $sortLabel", trailingArrow = true, onClick = onSortClick)
+            SortChip(sortOption = sortOption, onSortSelect = onSortSelect)
             GlassChip(
                 text = "Draft 포함",
                 active = includeDraft,
@@ -152,6 +158,30 @@ private fun PrToolbar(
                 leading = { Icon(Icons.Default.Refresh, null, tint = MeowColors.TextPrimary, modifier = Modifier.size(14.dp)) },
                 onClick = onRefresh,
             )
+        }
+    }
+}
+
+/** 정렬 칩. 클릭하면 세 정렬 옵션 중 하나를 고르는 드롭다운 메뉴가 뜬다. */
+@Composable
+private fun SortChip(sortOption: PrSortOption, onSortSelect: (PrSortOption) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        GlassChip(
+            text = "정렬: ${sortOption.label}",
+            trailingArrow = true,
+            onClick = { expanded = true },
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            PrSortOption.entries.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.label) },
+                    onClick = {
+                        onSortSelect(option)
+                        expanded = false
+                    },
+                )
+            }
         }
     }
 }
