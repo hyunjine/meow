@@ -1,0 +1,4 @@
+project_id = "meow"
+
+[functions.gh-webhook]
+verify_jwt = false

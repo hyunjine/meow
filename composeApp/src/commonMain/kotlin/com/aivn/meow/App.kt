@@ -23,9 +23,11 @@ import com.aivn.meow.config.AppConfig
 import com.aivn.meow.data.PrRepository
 import com.aivn.meow.github.GithubClient
 import com.aivn.meow.model.PullRequest
+import com.aivn.meow.realtime.RealtimeService
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.MeowTheme
 import com.aivn.meow.ui.Dashboard
+import com.aivn.meow.ui.DashboardUiState
 import com.aivn.meow.ui.DashboardViewModel
 
 @Composable
@@ -41,6 +43,9 @@ fun App(
         val repository = PrRepository(client)
         DashboardViewModel(repository, config.org, scope)
     }
+    val realtimeService = remember(config.supabase) {
+        config.supabase?.let { RealtimeService(it) }
+    }
 
     LaunchedEffect(viewModel) { viewModel.start() }
     LaunchedEffect(viewModel) {
@@ -48,6 +53,15 @@ fun App(
     }
 
     val state by viewModel.state.collectAsState()
+    val viewerLogin = (state as? DashboardUiState.Loaded)?.snapshot?.viewerLogin
+
+    LaunchedEffect(realtimeService, viewerLogin) {
+        val service = realtimeService ?: return@LaunchedEffect
+        val login = viewerLogin ?: return@LaunchedEffect
+        service.subscribeReviewRequests(login).collect { pr ->
+            viewModel.onRealtimeEvent(pr)
+        }
+    }
 
     MeowTheme {
         Dashboard(
