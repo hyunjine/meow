@@ -16,7 +16,7 @@ val DashboardSections: List<DashboardSection> = listOf(
 
     // #14 MentionsSection,
 
-    // #15 MyPrStatusSection,
+    MyPrStatusSection,
 
     // #24 MyIssueCommentsSection,
 )
