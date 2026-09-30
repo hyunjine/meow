@@ -10,6 +10,7 @@ import com.aivn.meow.github.searchItems
 object AssignedIssuesSection : DashboardSection {
     override val id = "assigned-issues"
     override val title = "나에게 할당된 이슈"
+    override val tabLabel = "할당 이슈"
     override val emptyTitle = "할당된 이슈가 없습니다 🎉"
     override val emptyHint = "새로 할당되면 여기에 표시돼요"
 

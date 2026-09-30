@@ -18,11 +18,12 @@ import kotlin.time.Duration.Companion.days
 /**
  * #24 내가 작성한 이슈에 달린 새 댓글. 댓글 하나가 항목 하나.
  * "새 댓글" = 마지막 확인 이후 + 이슈 작성자(= 나)가 아닌 사람이 단 댓글.
- * #29 확인 시각은 헤더의 '모두 확인' 으로 갱신하며, 저장된 값이 없으면 최근 7일을 기준으로 한다.
+ * #29 확인 시각은 탭 바의 '모두 확인' 으로 갱신하며, 저장된 값이 없으면 최근 7일을 기준으로 한다.
  */
 object MyIssueCommentsSection : DashboardSection {
     override val id = "my-issue-comments"
     override val title = "내 이슈에 달린 새 댓글"
+    override val tabLabel = "새 댓글"
     override val emptyTitle = "새 댓글이 없어요"
     override val emptyHint = "마지막 확인 이후 내 이슈에 달린 댓글이 여기에 표시돼요"
     override val headerAction = SectionHeaderAction("모두 확인") {

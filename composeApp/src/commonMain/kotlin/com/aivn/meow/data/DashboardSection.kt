@@ -8,7 +8,7 @@ import com.aivn.meow.model.SectionItem
 import kotlinx.coroutines.CancellationException
 
 /**
- * 리뷰 대기 PR 아래에 붙는 보조 섹션 정의. 구현체는 `ui/sections/<Name>Section.kt` 에 두고
+ * 리뷰 대기 PR 탭 옆에 붙는 보조 섹션 탭 정의. 구현체는 `ui/sections/<Name>Section.kt` 에 두고
  * `ui/sections/DashboardSections.kt` 목록에 등록한다. 로딩 · 폴링 · 렌더링은 공통 흐름이 처리한다.
  */
 interface DashboardSection {
@@ -18,13 +18,16 @@ interface DashboardSection {
     val emptyTitle: String
     val emptyHint: String
 
-    /** 헤더 오른쪽에 붙는 선택적 동작. 기본은 없음. */
+    /** 탭 칩에 표시되는 짧은 이름. 기본은 [title]. */
+    val tabLabel: String get() = title
+
+    /** 탭 바 오른쪽 도구에 붙는 선택적 동작. 기본은 없음. */
     val headerAction: SectionHeaderAction? get() = null
 
     suspend fun load(client: GithubClient, org: String): SectionData
 }
 
-/** 섹션 헤더의 작은 텍스트 버튼. 누르면 [perform] 후 다음 로딩 전까지 카드의 항목을 비운다. */
+/** 탭 바의 작은 텍스트 버튼. 누르면 [perform] 후 다음 로딩 전까지 탭의 항목을 비운다. */
 class SectionHeaderAction(val label: String, val perform: () -> Unit)
 
 data class SectionData(
