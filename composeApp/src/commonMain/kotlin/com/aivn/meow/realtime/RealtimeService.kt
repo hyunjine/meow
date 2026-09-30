@@ -3,6 +3,7 @@ package com.aivn.meow.realtime
 import androidx.compose.ui.graphics.Color
 import com.aivn.meow.config.SupabaseConfig
 import com.aivn.meow.model.CiStatus
+import com.aivn.meow.model.Label
 import com.aivn.meow.model.PullRequest
 import com.aivn.meow.theme.MeowColors
 import io.github.jan.supabase.createSupabaseClient
@@ -21,6 +22,9 @@ import kotlinx.serialization.json.Json
 import kotlin.math.abs
 
 @Serializable
+private data class PrLabelRow(val name: String, val color: String)
+
+@Serializable
 private data class PrEventRow(
     val id: String,
     @SerialName("delivery_id") val deliveryId: String? = null,
@@ -31,6 +35,7 @@ private data class PrEventRow(
     @SerialName("repo_full_name") val repoFullName: String,
     val author: String? = null,
     @SerialName("is_draft") val isDraft: Boolean = false,
+    val labels: List<PrLabelRow> = emptyList(),
 )
 
 /**
@@ -82,7 +87,7 @@ private fun PrEventRow.toDomain(): PullRequest {
         updatedAtIso = "", // Realtime 이벤트엔 GitHub updated_at 이 없음 — 대시보드 카드는 다음 폴링에서 정확해짐
         isDraft = isDraft,
         ci = CiStatus.Pending,
-        labels = emptyList(),
+        labels = labels.take(4).map { Label(text = it.name, color = hexColorOrFallback(it.color, color)) },
         url = prUrl,
     )
 }
@@ -100,6 +105,15 @@ private val palette = listOf(
 private fun colorForRepo(repo: String): Color {
     val hash = repo.fold(0) { acc, c -> acc * 31 + c.code }
     return palette[abs(hash) % palette.size]
+}
+
+private fun hexColorOrFallback(hex: String, fallback: Color): Color {
+    val v = hex.trim().removePrefix("#")
+    if (v.length != 6) return fallback
+    val r = v.substring(0, 2).toIntOrNull(16) ?: return fallback
+    val g = v.substring(2, 4).toIntOrNull(16) ?: return fallback
+    val b = v.substring(4, 6).toIntOrNull(16) ?: return fallback
+    return Color(r / 255f, g / 255f, b / 255f)
 }
 
 private fun initialsFrom(login: String): String {

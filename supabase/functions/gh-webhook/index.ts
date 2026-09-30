@@ -74,6 +74,9 @@ Deno.serve(async (req) => {
   if (!reviewer) return new Response("no reviewer", { status: 200 });
 
   const pr = payload.pull_request;
+  const labels = Array.isArray(pr.labels)
+    ? pr.labels.map((label: any) => ({ name: label.name, color: label.color }))
+    : [];
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
   });
@@ -89,6 +92,7 @@ Deno.serve(async (req) => {
     repo_full_name: payload.repository.full_name,
     author: pr.user?.login ?? null,
     is_draft: !!pr.draft,
+    labels,
   });
 
   if (error) {
