@@ -10,6 +10,7 @@ import com.aivn.meow.github.searchItems
 object MentionsSection : DashboardSection {
     override val id = "mentions"
     override val title = "나를 멘션한 이슈 · PR"
+    override val tabLabel = "멘션"
     override val emptyTitle = "멘션된 스레드가 없어요"
     override val emptyHint = "누군가 나를 멘션하면 여기에 표시돼요"
 
