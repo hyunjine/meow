@@ -2,6 +2,7 @@ package com.aivn.meow.ui
 
 import com.aivn.meow.data.DashboardSnapshot
 import com.aivn.meow.data.PrRepository
+import com.aivn.meow.github.GithubApiException
 import com.aivn.meow.model.PullRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 
 sealed interface DashboardUiState {
     data object Loading : DashboardUiState
@@ -22,9 +24,36 @@ sealed interface DashboardUiState {
     data class Loaded(
         val snapshot: DashboardSnapshot,
         val refreshing: Boolean = false,
-        val refreshError: String? = null,
+        val refreshError: LoadFailure? = null,
     ) : DashboardUiState
-    data class Error(val message: String) : DashboardUiState
+    data class Error(val failure: LoadFailure) : DashboardUiState
+}
+
+/** 오류 UI 가 원인별로 다른 안내를 하기 위한 실패 분류. */
+sealed interface LoadFailure {
+    val message: String
+
+    /** 토큰 만료 · 무효 · 권한 부족 → 토큰 교체 안내. */
+    data class Auth(override val message: String) : LoadFailure
+
+    /** Rate limit 초과 → 남은 쿼터 · 리셋 시각 안내. */
+    data class RateLimited(
+        override val message: String,
+        val remaining: Int?,
+        val limit: Int?,
+        val resetAt: Instant?,
+    ) : LoadFailure
+
+    data class Other(override val message: String) : LoadFailure
+}
+
+private fun Throwable.toLoadFailure(): LoadFailure {
+    val message = message ?: this::class.simpleName ?: "unknown error"
+    return when (this) {
+        is GithubApiException.Unauthorized -> LoadFailure.Auth(message)
+        is GithubApiException.RateLimited -> LoadFailure.RateLimited(message, remaining, limit, resetAt)
+        else -> LoadFailure.Other(message)
+    }
 }
 
 class DashboardViewModel(
@@ -82,13 +111,13 @@ class DashboardViewModel(
                 _state.value = DashboardUiState.Loaded(snapshot, refreshing = false)
             }
             .onFailure { throwable ->
-                val message = throwable.message ?: throwable::class.simpleName ?: "unknown error"
+                val failure = throwable.toLoadFailure()
                 // 이미 목록이 있으면 오류 화면으로 덮지 않고 마지막 성공 데이터를 유지.
                 // 자동 새로고침 실패는 조용히 넘기고, 수동 새로고침 실패만 배너로 알린다.
                 _state.value = when {
-                    prior !is DashboardUiState.Loaded -> DashboardUiState.Error(message)
+                    prior !is DashboardUiState.Loaded -> DashboardUiState.Error(failure)
                     auto -> prior.copy(refreshing = false)
-                    else -> prior.copy(refreshing = false, refreshError = message)
+                    else -> prior.copy(refreshing = false, refreshError = failure)
                 }
             }
     }

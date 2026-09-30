@@ -35,6 +35,7 @@ import com.aivn.meow.data.DashboardSnapshot
 import com.aivn.meow.model.PullRequest
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
+import com.aivn.meow.util.formatKst
 import com.aivn.meow.util.formatSyncLabel
 import com.aivn.meow.util.relativeTime
 
@@ -49,7 +50,7 @@ fun Dashboard(
     ) {
         when (state) {
             is DashboardUiState.Loading -> CenteredLoading("PR 목록을 불러오는 중…")
-            is DashboardUiState.Error -> CenteredError(state.message, onRefresh)
+            is DashboardUiState.Error -> CenteredError(state.failure, onRefresh)
             is DashboardUiState.Loaded -> DashboardContent(state, onRefresh, onOpenPr)
         }
     }
@@ -119,8 +120,8 @@ private fun DashboardContent(
                 modifier = Modifier.fillMaxWidth(),
             )
             StatCards(stats = stats, modifier = Modifier.fillMaxWidth())
-            state.refreshError?.let { message ->
-                RefreshErrorBanner(message = message, onRetry = onRefresh, modifier = Modifier.fillMaxWidth())
+            state.refreshError?.let { failure ->
+                RefreshErrorBanner(failure = failure, onRetry = onRefresh, modifier = Modifier.fillMaxWidth())
             }
             PrListCard(
                 pullRequests = prs,
@@ -156,27 +157,49 @@ private fun CenteredLoading(message: String) {
     }
 }
 
+/** 실패 원인별 제목 · 해결 안내 문구. */
+private data class FailureGuide(val title: String, val hint: String)
+
+private fun LoadFailure.guide(): FailureGuide = when (this) {
+    is LoadFailure.Auth -> FailureGuide(
+        title = "GitHub 토큰이 만료됐거나 권한이 부족해요",
+        hint = "repo:read + read:org 권한 토큰을 새로 발급해 환경변수 GITHUB_TOKEN 또는 " +
+            "~/.config/meow/token 에 교체한 뒤 앱을 다시 실행해 주세요.",
+    )
+    is LoadFailure.RateLimited -> {
+        val quota = if (remaining != null && limit != null) "남은 쿼터 $remaining/$limit · " else ""
+        val reset = resetAt?.let { "${formatKst(it)} (KST) 이후 다시 시도해 주세요." }
+            ?: "잠시 후 다시 시도해 주세요."
+        FailureGuide(title = "GitHub API 사용 한도를 초과했어요", hint = quota + reset)
+    }
+    is LoadFailure.Other -> FailureGuide(
+        title = "불러오는 중 문제가 발생했어요",
+        hint = "환경변수 GITHUB_TOKEN 또는 ~/.config/meow/token 을 확인한 뒤 다시 시도해 보세요.",
+    )
+}
+
 @Composable
-private fun CenteredError(message: String, onRetry: () -> Unit) {
+private fun CenteredError(failure: LoadFailure, onRetry: () -> Unit) {
+    val guide = failure.guide()
     Column(
         modifier = Modifier.fillMaxSize().padding(40.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "불러오는 중 문제가 발생했어요",
+            text = guide.title,
             color = MeowColors.TextPrimary,
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = message,
+            text = failure.message,
             modifier = Modifier.padding(top = 12.dp),
             color = MeowColors.TextSecondary,
             fontSize = 13.sp,
         )
         Text(
-            text = "환경변수 GITHUB_TOKEN 또는 ~/.config/meow/token 을 확인한 뒤 다시 시도해 보세요.",
+            text = guide.hint,
             modifier = Modifier.padding(top = 8.dp),
             color = MeowColors.TextTertiary,
             fontSize = 12.sp,
@@ -187,7 +210,12 @@ private fun CenteredError(message: String, onRetry: () -> Unit) {
 
 /** 목록은 유지한 채 새로고침 실패 사실과 재시도를 안내하는 배너. */
 @Composable
-private fun RefreshErrorBanner(message: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+private fun RefreshErrorBanner(failure: LoadFailure, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+    // 일반 오류는 원문 메시지를, 토큰 · rate limit 은 해결 안내를 보여준다.
+    val (title, detail) = when (failure) {
+        is LoadFailure.Other -> "새로고침에 실패했어요" to failure.message
+        else -> failure.guide().let { it.title to it.hint }
+    }
     Row(
         modifier = modifier
             .glassSurface(corner = 20.dp, borderColor = MeowColors.Error.copy(alpha = 0.45f), elevation = 4.dp)
@@ -198,13 +226,13 @@ private fun RefreshErrorBanner(message: String, onRetry: () -> Unit, modifier: M
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                text = "새로고침에 실패했어요 · 마지막으로 불러온 목록을 표시 중이에요",
+                text = "$title · 마지막으로 불러온 목록을 표시 중이에요",
                 color = MeowColors.Error,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = message,
+                text = detail,
                 color = MeowColors.TextSecondary,
                 fontSize = 12.sp,
                 maxLines = 2,
