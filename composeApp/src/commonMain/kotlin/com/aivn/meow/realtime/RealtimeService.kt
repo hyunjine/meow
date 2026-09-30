@@ -8,6 +8,7 @@ import com.aivn.meow.model.PullRequest
 import com.aivn.meow.theme.MeowColors
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
+import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.realtime.channel
@@ -54,7 +55,7 @@ class RealtimeService(private val config: SupabaseConfig) {
         val channel = client.channel("pr_events_${reviewerLogin}")
         val insertFlow = channel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
             table = "pr_events"
-            filter = "requested_reviewer=eq.$reviewerLogin"
+            filter("requested_reviewer", FilterOperator.EQ, reviewerLogin)
         }
         channel.subscribe()
         try {
