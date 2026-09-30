@@ -42,10 +42,8 @@ import com.aivn.meow.theme.glassSurface
 fun PrListCard(
     pullRequests: List<PullRequest>,
     sortOption: PrSortOption,
-    includeDraft: Boolean,
     onRefresh: () -> Unit,
     onSortSelect: (PrSortOption) -> Unit,
-    onToggleDraft: () -> Unit,
     onOpenPr: (PullRequest) -> Unit,
     modifier: Modifier = Modifier,
     // 키보드 네비게이션으로 현재 포커스된 행의 인덱스 (없으면 -1)
@@ -60,15 +58,13 @@ fun PrListCard(
         PrToolbar(
             count = pullRequests.size,
             sortOption = sortOption,
-            includeDraft = includeDraft,
             onRefresh = onRefresh,
             onSortSelect = onSortSelect,
-            onToggleDraft = onToggleDraft,
         )
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (pullRequests.isEmpty()) {
-                EmptyPrState(includeDraft = includeDraft)
+                EmptyPrState()
             } else {
                 pullRequests.forEachIndexed { index, pr ->
                     PrRow(pr = pr, isSelected = index == selectedIndex, onOpen = { onOpenPr(pr) })
@@ -79,7 +75,7 @@ fun PrListCard(
 }
 
 @Composable
-private fun EmptyPrState(includeDraft: Boolean) {
+private fun EmptyPrState() {
     // 리뷰 요청 PR 이 0건일 때 표시되는 빈 상태
     Column(
         modifier = Modifier
@@ -95,12 +91,7 @@ private fun EmptyPrState(includeDraft: Boolean) {
             fontWeight = FontWeight.Bold,
         )
         Text(
-            // Draft 필터로 인해 0건이 된 경우를 자연스럽게 안내
-            text = if (includeDraft) {
-                "여유로운 하루 보내세요"
-            } else {
-                "Draft PR 은 숨겨져 있어요 · 'Draft 포함'을 켜면 보일 수 있어요"
-            },
+            text = "여유로운 하루 보내세요",
             color = MeowColors.TextTertiary,
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
@@ -112,10 +103,8 @@ private fun EmptyPrState(includeDraft: Boolean) {
 private fun PrToolbar(
     count: Int,
     sortOption: PrSortOption,
-    includeDraft: Boolean,
     onRefresh: () -> Unit,
     onSortSelect: (PrSortOption) -> Unit,
-    onToggleDraft: () -> Unit,
 ) {
     Row(
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -152,11 +141,6 @@ private fun PrToolbar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             SortChip(sortOption = sortOption, onSortSelect = onSortSelect)
-            GlassChip(
-                text = "Draft 포함",
-                active = includeDraft,
-                onClick = onToggleDraft,
-            )
             GlassChip(
                 text = "새로고침",
                 leading = { Icon(Icons.Default.Refresh, null, tint = MeowColors.TextPrimary, modifier = Modifier.size(14.dp)) },

@@ -75,7 +75,6 @@ private fun DashboardContent(
     onOpenPr: (PullRequest) -> Unit,
     onOpenUrl: (String) -> Unit,
 ) {
-    var includeDraft by remember { mutableStateOf(true) }
     var sortOption by remember { mutableStateOf(PrSortOption.OLDEST) }
     // ↑/↓ · j/k 로 이동하는 키보드 포커스 인덱스
     var selectedIndex by remember { mutableStateOf(0) }
@@ -84,7 +83,6 @@ private fun DashboardContent(
     val snapshot = state.snapshot
     val prs = snapshot.pullRequests
         .map { it.copy(relativeTime = relativeTime(it.updatedAtIso)) }
-        .let { if (includeDraft) it else it.filterNot { pr -> pr.isDraft } }
         .let { list ->
             when (sortOption) {
                 PrSortOption.OLDEST -> list.sortedBy { it.updatedAtIso }
@@ -94,7 +92,7 @@ private fun DashboardContent(
             }
         }
 
-    // 정렬/필터로 목록이 줄어들면 선택 인덱스를 유효 범위로 맞춘다
+    // 정렬 · 새로고침으로 목록이 줄어들면 선택 인덱스를 유효 범위로 맞춘다
     LaunchedEffect(prs.size) {
         selectedIndex = selectedIndex.coerceIn(0, (prs.size - 1).coerceAtLeast(0))
     }
@@ -181,10 +179,8 @@ private fun DashboardContent(
             PrListCard(
                 pullRequests = prs,
                 sortOption = sortOption,
-                includeDraft = includeDraft,
                 onRefresh = onRefresh,
                 onSortSelect = { sortOption = it },
-                onToggleDraft = { includeDraft = !includeDraft },
                 onOpenPr = onOpenPr,
                 modifier = Modifier.fillMaxWidth(),
                 selectedIndex = selectedIndex,
