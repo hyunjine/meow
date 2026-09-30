@@ -53,15 +53,19 @@ private fun DashboardContent(
     onOpenPr: (PullRequest) -> Unit,
 ) {
     var includeDraft by remember { mutableStateOf(true) }
-    var sortLabel by remember { mutableStateOf("오래된 순") }
+    var sortOption by remember { mutableStateOf(PrSortOption.OLDEST) }
 
     val snapshot = state.snapshot
     val prs = snapshot.pullRequests
         .map { it.copy(relativeTime = relativeTime(it.updatedAtIso)) }
         .let { if (includeDraft) it else it.filterNot { pr -> pr.isDraft } }
         .let { list ->
-            if (sortLabel == "최신 순") list.sortedByDescending { it.updatedAtIso }
-            else list.sortedBy { it.updatedAtIso }
+            when (sortOption) {
+                PrSortOption.OLDEST -> list.sortedBy { it.updatedAtIso }
+                PrSortOption.NEWEST -> list.sortedByDescending { it.updatedAtIso }
+                // 레포 이름순으로 묶고, 레포 내에서는 오래된 순.
+                PrSortOption.BY_REPO -> list.sortedWith(compareBy({ it.repo }, { it.updatedAtIso }))
+            }
         }
 
     val stats = listOf(
@@ -112,12 +116,10 @@ private fun DashboardContent(
             StatCards(stats = stats, modifier = Modifier.fillMaxWidth())
             PrListCard(
                 pullRequests = prs,
-                sortLabel = sortLabel,
+                sortOption = sortOption,
                 includeDraft = includeDraft,
                 onRefresh = onRefresh,
-                onSortClick = {
-                    sortLabel = if (sortLabel == "오래된 순") "최신 순" else "오래된 순"
-                },
+                onSortSelect = { sortOption = it },
                 onToggleDraft = { includeDraft = !includeDraft },
                 onOpenPr = onOpenPr,
                 modifier = Modifier.fillMaxWidth(),

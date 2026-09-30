@@ -22,6 +22,13 @@ sealed interface DashboardUiState {
     data class Error(val message: String) : DashboardUiState
 }
 
+/** PR 목록 정렬 옵션. [label] 은 정렬 칩/드롭다운에 표시되는 문구. */
+enum class PrSortOption(val label: String) {
+    OLDEST("오래된 순"),
+    NEWEST("최신 순"),
+    BY_REPO("리포지토리별"),
+}
+
 class DashboardViewModel(
     private val repository: PrRepository,
     private val org: String,
