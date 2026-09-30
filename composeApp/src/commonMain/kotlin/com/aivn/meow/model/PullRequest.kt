@@ -2,7 +2,8 @@ package com.aivn.meow.model
 
 import androidx.compose.ui.graphics.Color
 
-enum class CiStatus { Pass, Fail, Pending }
+/** [None] 은 CI 체크 자체가 없는 PR (statusCheckRollup == null) — 칩을 렌더하지 않는다. */
+enum class CiStatus { Pass, Fail, Pending, None }
 
 data class Label(val text: String, val color: Color)
 
