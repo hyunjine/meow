@@ -1,5 +1,6 @@
 package com.aivn.meow.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,6 +15,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -174,10 +176,38 @@ private fun SortChip(sortOption: PrSortOption, onSortSelect: (PrSortOption) -> U
             trailingArrow = true,
             onClick = { expanded = true },
         )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            shape = RoundedCornerShape(14.dp),
+            containerColor = MeowColors.Surface,
+            border = BorderStroke(1.dp, MeowColors.GlassBorder),
+            tonalElevation = 0.dp,
+            shadowElevation = 6.dp,
+        ) {
             PrSortOption.entries.forEach { option ->
+                val isSelected = option == sortOption
                 DropdownMenuItem(
-                    text = { Text(option.label) },
+                    text = {
+                        Text(
+                            text = option.label,
+                            color = if (isSelected) MeowColors.Brand else MeowColors.TextPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    },
+                    trailingIcon = if (isSelected) {
+                        {
+                            Icon(
+                                Icons.Default.Check,
+                                null,
+                                tint = MeowColors.Brand,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    } else {
+                        null
+                    },
                     onClick = {
                         onSortSelect(option)
                         expanded = false
