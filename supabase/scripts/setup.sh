@@ -12,7 +12,7 @@
 #     --project-ref <supabase-project-ref> \
 #     --anon-key <supabase-anon-key> \
 #     --webhook-secret <github-webhook-secret> \
-#     [--owner <github-owner, 기본: hyunjine>] \
+#     [--owner <github-owner, 기본: Team-AIVN>] \
 #     [--repos "repo1,repo2,..."] \
 #     [--generate-secret] \
 #     [--skip-deploy] [--skip-webhooks] [--skip-config]
@@ -22,7 +22,7 @@
 
 set -euo pipefail
 
-DEFAULT_OWNER="hyunjine"
+DEFAULT_OWNER="Team-AIVN"
 DEFAULT_REPOS=(
   ChatSea-Android
   ChatSea-Apple
@@ -41,7 +41,7 @@ usage() {
   --anon-key <key>          Supabase anon key (SUPABASE_ANON_KEY 환경변수로도 지정 가능)
   --webhook-secret <secret> GitHub 웹훅 시크릿 (GITHUB_WEBHOOK_SECRET 환경변수로도 지정 가능)
   --generate-secret         webhook-secret 미지정 시 openssl 로 새로 생성해서 사용
-  --owner <owner>           웹훅을 등록할 GitHub owner (기본: hyunjine)
+  --owner <owner>           웹훅을 등록할 GitHub owner (기본: Team-AIVN)
   --repos "a,b,c"           웹훅을 등록할 저장소 목록 (기본: README 6개 저장소)
   --skip-deploy             4단계(Edge Function 배포) 건너뛰기
   --skip-webhooks           5단계(저장소 웹훅 등록) 건너뛰기

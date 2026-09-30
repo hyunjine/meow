@@ -109,7 +109,7 @@ supabase/scripts/setup.sh \
 | `--project-ref` | Supabase 프로젝트 ref |
 | `--anon-key` | Supabase anon key |
 | `--webhook-secret` | GitHub 웹훅 시크릿 (생략 시 `--generate-secret` 로 자동 생성) |
-| `--owner` | 웹훅을 등록할 GitHub owner (기본: `hyunjine`) |
+| `--owner` | 웹훅을 등록할 GitHub owner (기본: `Team-AIVN`) |
 | `--repos` | 콤마로 구분한 대상 저장소 목록 (기본: 위 6개) |
 | `--skip-deploy` / `--skip-webhooks` / `--skip-config` | 해당 단계 건너뛰기 |
 
