@@ -4,7 +4,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 actual fun loadAppConfig(): AppConfig? {
-    val token = readToken() ?: return null
+    val token = readGithubToken() ?: return null
     val org = System.getenv("MEOW_GITHUB_ORG")?.takeIf { it.isNotBlank() } ?: "Team-AIVN"
     return AppConfig(org = org, token = token, supabase = readSupabase())
 }
@@ -31,7 +31,8 @@ private fun envOrFile(envName: String, fileName: String): String? {
     return null
 }
 
-private fun readToken(): String? {
+/** 환경변수 GITHUB_TOKEN → ~/.config/meow/token → ~/.meow/token 순으로 토큰을 읽는다. 호출할 때마다 새로 읽는다. */
+fun readGithubToken(): String? {
     System.getenv("GITHUB_TOKEN")?.takeIf { it.isNotBlank() }?.let { return it.trim() }
 
     val home = System.getProperty("user.home") ?: return null

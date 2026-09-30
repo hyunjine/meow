@@ -222,7 +222,7 @@ private fun LoadFailure.guide(): FailureGuide = when (this) {
     is LoadFailure.Auth -> FailureGuide(
         title = "GitHub 토큰이 만료됐거나 권한이 부족해요",
         hint = "repo:read + read:org 권한 토큰을 새로 발급해 환경변수 GITHUB_TOKEN 또는 " +
-            "~/.config/meow/token 에 교체한 뒤 앱을 다시 실행해 주세요.",
+            "~/.config/meow/token 에 교체한 뒤 다시 시도를 눌러 주세요.",
     )
     is LoadFailure.RateLimited -> {
         val quota = if (remaining != null && limit != null) "남은 쿼터 $remaining/$limit · " else ""
