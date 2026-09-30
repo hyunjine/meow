@@ -21,7 +21,8 @@ import kotlinx.serialization.json.Json
 import kotlin.time.Duration.Companion.seconds
 
 class GithubClient(
-    private val token: String,
+    /** 요청마다 호출돼 최신 토큰을 돌려준다 — 토큰 교체 후 재시작 없이 다시 시도로 반영하기 위함. */
+    private val tokenProvider: () -> String,
     engineFactory: HttpClientEngineFactory<*>,
 ) {
     private val json = Json {
@@ -47,7 +48,7 @@ class GithubClient(
         variables: Map<String, String> = emptyMap(),
     ): T {
         val response: HttpResponse = http.post(GRAPHQL_ENDPOINT) {
-            header(HttpHeaders.Authorization, "Bearer $token")
+            header(HttpHeaders.Authorization, "Bearer ${tokenProvider()}")
             contentType(ContentType.Application.Json)
             setBody(GraphQlRequest(query = query, variables = variables))
         }

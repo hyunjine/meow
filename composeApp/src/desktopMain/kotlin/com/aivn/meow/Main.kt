@@ -15,6 +15,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberTrayState
 import androidx.compose.ui.window.rememberWindowState
 import com.aivn.meow.config.loadAppConfig
+import com.aivn.meow.config.readGithubToken
 import com.aivn.meow.github.GithubClient
 import io.ktor.client.engine.cio.CIO
 import java.awt.Desktop
@@ -42,7 +43,8 @@ fun main() = application {
         } else {
             App(
                 config = config,
-                githubClientFactory = { token -> GithubClient(token, CIO) },
+                // 요청마다 토큰을 다시 읽어, 교체된 토큰이 재시작 없이 반영되게 한다. 읽기 실패 시 시작 시 토큰 사용.
+                githubClientFactory = { token -> GithubClient({ readGithubToken() ?: token }, CIO) },
                 onOpenUrl = ::openUrlInBrowser,
                 onNewRequests = { prs ->
                     prs.forEach { pr ->
