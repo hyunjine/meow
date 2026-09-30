@@ -2,6 +2,7 @@ package com.aivn.meow.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +29,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -64,6 +74,9 @@ private fun DashboardContent(
 ) {
     var includeDraft by remember { mutableStateOf(true) }
     var sortOption by remember { mutableStateOf(PrSortOption.OLDEST) }
+    // ↑/↓ · j/k 로 이동하는 키보드 포커스 인덱스
+    var selectedIndex by remember { mutableStateOf(0) }
+    val focusRequester = remember { FocusRequester() }
 
     val snapshot = state.snapshot
     val prs = snapshot.pullRequests
@@ -77,6 +90,12 @@ private fun DashboardContent(
                 PrSortOption.BY_REPO -> list.sortedWith(compareBy({ it.repo }, { it.updatedAtIso }))
             }
         }
+
+    // 정렬/필터로 목록이 줄어들면 선택 인덱스를 유효 범위로 맞춘다
+    LaunchedEffect(prs.size) {
+        selectedIndex = selectedIndex.coerceIn(0, (prs.size - 1).coerceAtLeast(0))
+    }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
     val stats = listOf(
         StatItem(
@@ -108,6 +127,34 @@ private fun DashboardContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .focusRequester(focusRequester)
+            .focusable()
+            .onPreviewKeyEvent { keyEvent ->
+                if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (keyEvent.key) {
+                    Key.DirectionDown, Key.J -> {
+                        if (prs.isNotEmpty()) selectedIndex = (selectedIndex + 1).coerceAtMost(prs.lastIndex)
+                        true
+                    }
+                    Key.DirectionUp, Key.K -> {
+                        if (prs.isNotEmpty()) selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
+                        true
+                    }
+                    Key.Enter, Key.NumPadEnter -> {
+                        prs.getOrNull(selectedIndex)?.let(onOpenPr)
+                        true
+                    }
+                    Key.R -> {
+                        if (keyEvent.isMetaPressed) {
+                            onRefresh()
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    else -> false
+                }
+            }
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -137,6 +184,7 @@ private fun DashboardContent(
                 onToggleDraft = { includeDraft = !includeDraft },
                 onOpenPr = onOpenPr,
                 modifier = Modifier.fillMaxWidth(),
+                selectedIndex = selectedIndex,
             )
         }
     }

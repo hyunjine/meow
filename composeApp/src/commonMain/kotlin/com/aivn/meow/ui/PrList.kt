@@ -46,6 +46,8 @@ fun PrListCard(
     onToggleDraft: () -> Unit,
     onOpenPr: (PullRequest) -> Unit,
     modifier: Modifier = Modifier,
+    // 키보드 네비게이션으로 현재 포커스된 행의 인덱스 (없으면 -1)
+    selectedIndex: Int = -1,
 ) {
     Column(
         modifier = modifier
@@ -66,8 +68,8 @@ fun PrListCard(
             if (pullRequests.isEmpty()) {
                 EmptyPrState(includeDraft = includeDraft)
             } else {
-                pullRequests.forEach { pr ->
-                    PrRow(pr = pr, onOpen = { onOpenPr(pr) })
+                pullRequests.forEachIndexed { index, pr ->
+                    PrRow(pr = pr, isSelected = index == selectedIndex, onOpen = { onOpenPr(pr) })
                 }
             }
         }
@@ -221,10 +223,16 @@ private fun GlassChip(
 }
 
 @Composable
-private fun PrRow(pr: PullRequest, onOpen: () -> Unit) {
+private fun PrRow(pr: PullRequest, isSelected: Boolean, onOpen: () -> Unit) {
     Row(
         modifier = Modifier
-            .glassSurface(corner = 20.dp, fill = MeowColors.GlassSurface)
+            .glassSurface(
+                corner = 20.dp,
+                fill = MeowColors.GlassSurface,
+                // 키보드로 선택된 행은 브랜드 컬러 테두리로 포커스를 표시
+                borderColor = if (isSelected) MeowColors.Brand else MeowColors.GlassBorder,
+                borderWidth = if (isSelected) 2.dp else 1.dp,
+            )
             .clickable(onClick = onOpen)
             .padding(horizontal = 20.dp, vertical = 18.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
