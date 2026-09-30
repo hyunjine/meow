@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -17,6 +18,10 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,6 +46,9 @@ fun SectionCard(
     modifier: Modifier = Modifier,
 ) {
     val section = result.section
+    // 헤더 동작으로 비운 상태. 다음 로딩 결과가 오면 초기화된다.
+    var cleared by remember(result) { mutableStateOf(false) }
+    val items = if (cleared) emptyList() else result.items
     Column(
         modifier = modifier
             .glassSurface(corner = 28.dp)
@@ -48,6 +56,7 @@ fun SectionCard(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Row(
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -57,7 +66,17 @@ fun SectionCard(
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
             )
-            CountBadge(count = result.totalCount)
+            CountBadge(count = if (cleared) 0 else result.totalCount)
+            section.headerAction?.let { action ->
+                Spacer(Modifier.weight(1f))
+                HeaderActionChip(
+                    label = action.label,
+                    onClick = {
+                        action.perform()
+                        cleared = true
+                    },
+                )
+            }
         }
 
         result.errorMessage?.let { message ->
@@ -72,11 +91,11 @@ fun SectionCard(
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (result.items.isEmpty()) {
+            if (items.isEmpty()) {
                 // 첫 로딩부터 실패했으면 위 오류 문구만으로 충분하므로 빈 상태는 생략
                 if (result.errorMessage == null) SectionEmptyState(section.emptyTitle, section.emptyHint)
             } else {
-                result.items.forEach { item ->
+                items.forEach { item ->
                     SectionRow(item = item, onOpen = { onOpenUrl(item.url) })
                 }
             }
@@ -98,6 +117,25 @@ private fun CountBadge(count: Int) {
             color = MeowColors.Brand,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+@Composable
+private fun HeaderActionChip(label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(MeowColors.GlassSurfaceStrong)
+            .border(1.dp, MeowColors.GlassBorder, RoundedCornerShape(999.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(
+            text = label,
+            color = MeowColors.TextSecondary,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
         )
     }
 }
