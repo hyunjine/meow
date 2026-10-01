@@ -1,0 +1,48 @@
+name: Branch guard
+
+# PR 의 대상/출발 브랜치가 배포 전략(docs/RELEASE.md)을 따르는지 검사한다.
+# - 작업 브랜치 <태그>/#<이슈번호>-<내용> → dev/vX.Y.Z
+# - dev/vX.Y.Z → release (태그 중복 · packageVersion 일치까지 확인)
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+jobs:
+  branch-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 브랜치 이름 규칙 확인
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          DEV_RE='^dev/v[0-9]+\.[0-9]+\.[0-9]+$'
+          WORK_RE='^(feat|fix|refactor|chore|docs|style|perf|test|build|ci|setting)/#[0-9]+-[a-z0-9._-]+$'
+          if [ "$BASE" = "release" ]; then
+            [[ "$HEAD" =~ $DEV_RE ]] || { echo "::error::release 로는 dev/vX.Y.Z 브랜치에서만 PR 할 수 있어요 (현재: $HEAD)"; exit 1; }
+          elif [[ "$BASE" =~ $DEV_RE ]]; then
+            [[ "$HEAD" =~ $WORK_RE ]] || { echo "::error::작업 브랜치 이름은 <태그>/#<이슈번호>-<내용> 형식이어야 해요 (예: feat/#41-tab-layout, 현재: $HEAD)"; exit 1; }
+          else
+            echo "::error::PR 대상은 dev/vX.Y.Z 또는 release 여야 해요 (현재: $BASE)"; exit 1
+          fi
+
+      - name: 소스 체크아웃 (release PR)
+        if: github.base_ref == 'release'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: 버전 확인 (release PR)
+        if: github.base_ref == 'release'
+        env:
+          HEAD: ${{ github.head_ref }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VER="${HEAD#dev/v}"
+          APP_VER=$(grep -oE 'packageVersion = "[0-9.]+"' composeApp/build.gradle.kts | grep -oE '[0-9.]+')
+          [ "$APP_VER" = "$VER" ] || { echo "::error::composeApp/build.gradle.kts 의 packageVersion($APP_VER)이 브랜치 버전($VER)과 달라요"; exit 1; }
+          if gh api "repos/${{ github.repository }}/git/ref/tags/v$VER" >/dev/null 2>&1; then
+            echo "::error::v$VER 태그가 이미 있어요. 버전을 올린 dev 브랜치로 PR 해 주세요"; exit 1
+          fi
