@@ -41,7 +41,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aivn.meow.data.DashboardSnapshot
@@ -51,6 +50,10 @@ import com.aivn.meow.model.PullRequest
 import com.aivn.meow.model.SectionItem
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
+import com.aivn.meow.ui.common.PageHeader
+import com.aivn.meow.ui.common.PageHorizontalPadding
+import com.aivn.meow.ui.common.PageMaxWidth
+import com.aivn.meow.ui.common.PageVerticalPadding
 import com.aivn.meow.ui.sections.SectionRow
 import com.aivn.meow.util.formatKst
 import com.aivn.meow.util.formatSyncLabel
@@ -87,13 +90,10 @@ private fun DashboardContent(
     orgRepos: List<String>?,
     onToggleFavorite: (String) -> Unit,
 ) {
-    // 창 폭에 비례한 좌우 여백 (1440 창 ≈ 양옆 173, 좁은 창에서도 최소 48)
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val sideMargin = maxOf(48.dp, maxWidth * 0.12f)
-        val bodyWidth = minOf(maxWidth - sideMargin * 2, BodyMaxWidth)
+        val bodyWidth = minOf(maxWidth - PageHorizontalPadding * 2, PageMaxWidth)
         DashboardBody(
             state = state,
-            sideMargin = sideMargin,
             // 본문이 좁으면 사이드바를 숨기고 메인만 보여준다
             showSidebar = bodyWidth >= SidebarMinBodyWidth,
             onRefresh = onRefresh,
@@ -106,14 +106,12 @@ private fun DashboardContent(
     }
 }
 
-private val BodyMaxWidth = 1120.dp
 private val SidebarWidth = 240.dp
 private val SidebarMinBodyWidth = 760.dp
 
 @Composable
 private fun DashboardBody(
     state: DashboardUiState.Loaded,
-    sideMargin: Dp,
     showSidebar: Boolean,
     onRefresh: () -> Unit,
     onOpenPr: (PullRequest) -> Unit,
@@ -305,16 +303,18 @@ private fun DashboardBody(
         ) {
             Column(
                 modifier = Modifier
-                    .padding(horizontal = sideMargin)
+                    .padding(horizontal = PageHorizontalPadding, vertical = PageVerticalPadding)
                     .fillMaxWidth()
-                    .widthIn(max = BodyMaxWidth)
-                    .padding(vertical = 40.dp),
+                    .widthIn(max = PageMaxWidth),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                DashboardHeader(
-                    lastSyncLabel = formatSyncLabel(snapshot.fetchedAtIso),
-                    userInitials = snapshot.viewerInitials,
-                    avatarUrl = snapshot.avatarUrl,
+                PageHeader(
+                    title = "GitHub",
+                    syncLabel = "마지막 동기화",
+                    syncValue = formatSyncLabel(snapshot.fetchedAtIso),
+                    onSync = onRefresh,
+                    syncOk = state.refreshError == null,
+                    syncing = state.refreshing,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 StatCards(stats = stats, modifier = Modifier.fillMaxWidth())
@@ -356,11 +356,6 @@ private fun DashboardBody(
                                     },
                                 )
                             }
-                            GlassChip(
-                                text = "새로고침",
-                                leading = { Icon(Icons.Default.Refresh, null, tint = MeowColors.TextPrimary, modifier = Modifier.size(14.dp)) },
-                                onClick = onRefresh,
-                            )
                         }
                         if (currentSection == null) {
                             if (visiblePrs.isEmpty()) {
