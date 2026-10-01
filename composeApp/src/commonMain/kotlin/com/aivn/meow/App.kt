@@ -29,6 +29,7 @@ import com.aivn.meow.theme.MeowTheme
 import com.aivn.meow.ui.Dashboard
 import com.aivn.meow.ui.DashboardUiState
 import com.aivn.meow.ui.DashboardViewModel
+import com.aivn.meow.ui.MeowNotice
 import com.aivn.meow.ui.sections.DashboardSections
 
 @Composable
@@ -36,7 +37,7 @@ fun App(
     config: AppConfig,
     githubClientFactory: (String) -> GithubClient,
     onOpenUrl: (String) -> Unit,
-    onNewRequests: (List<PullRequest>) -> Unit = {},
+    onNotices: (List<MeowNotice>) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val viewModel = remember(config.token) {
@@ -50,10 +51,12 @@ fun App(
 
     LaunchedEffect(viewModel) { viewModel.start() }
     LaunchedEffect(viewModel) {
-        viewModel.newRequests.collect { onNewRequests(it) }
+        viewModel.notices.collect { onNotices(it) }
     }
 
     val state by viewModel.state.collectAsState()
+    val favoriteRepos by viewModel.favorites.collectAsState()
+    val orgRepos by viewModel.orgRepos.collectAsState()
     val viewerLogin = (state as? DashboardUiState.Loaded)?.snapshot?.viewerLogin
 
     LaunchedEffect(realtimeService, viewerLogin) {
@@ -70,6 +73,9 @@ fun App(
             onRefresh = { viewModel.refresh() },
             onOpenPr = { pr: PullRequest -> onOpenUrl(pr.url) },
             onOpenUrl = onOpenUrl,
+            favoriteRepos = favoriteRepos,
+            orgRepos = orgRepos,
+            onToggleFavorite = viewModel::toggleFavorite,
         )
     }
 }

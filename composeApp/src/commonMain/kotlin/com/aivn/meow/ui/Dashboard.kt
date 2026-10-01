@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,10 +41,12 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aivn.meow.data.DashboardSnapshot
 import com.aivn.meow.data.SectionResult
+import com.aivn.meow.data.colorForRepo
 import com.aivn.meow.model.PullRequest
 import com.aivn.meow.model.SectionItem
 import com.aivn.meow.theme.MeowColors
@@ -59,6 +62,9 @@ fun Dashboard(
     onRefresh: () -> Unit,
     onOpenPr: (PullRequest) -> Unit,
     onOpenUrl: (String) -> Unit,
+    favoriteRepos: Set<String>,
+    orgRepos: List<String>?,
+    onToggleFavorite: (String) -> Unit,
 ) {
     Box(
         modifier = Modifier.fillMaxSize().background(MeowColors.Background),
@@ -66,7 +72,7 @@ fun Dashboard(
         when (state) {
             is DashboardUiState.Loading -> CenteredLoading("PR 목록을 불러오는 중…")
             is DashboardUiState.Error -> CenteredError(state.failure, onRefresh)
-            is DashboardUiState.Loaded -> DashboardContent(state, onRefresh, onOpenPr, onOpenUrl)
+            is DashboardUiState.Loaded -> DashboardContent(state, onRefresh, onOpenPr, onOpenUrl, favoriteRepos, orgRepos, onToggleFavorite)
         }
     }
 }
@@ -77,6 +83,44 @@ private fun DashboardContent(
     onRefresh: () -> Unit,
     onOpenPr: (PullRequest) -> Unit,
     onOpenUrl: (String) -> Unit,
+    favoriteRepos: Set<String>,
+    orgRepos: List<String>?,
+    onToggleFavorite: (String) -> Unit,
+) {
+    // 창 폭에 비례한 좌우 여백 (1440 창 ≈ 양옆 173, 좁은 창에서도 최소 48)
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val sideMargin = maxOf(48.dp, maxWidth * 0.12f)
+        val bodyWidth = minOf(maxWidth - sideMargin * 2, BodyMaxWidth)
+        DashboardBody(
+            state = state,
+            sideMargin = sideMargin,
+            // 본문이 좁으면 사이드바를 숨기고 메인만 보여준다
+            showSidebar = bodyWidth >= SidebarMinBodyWidth,
+            onRefresh = onRefresh,
+            onOpenPr = onOpenPr,
+            onOpenUrl = onOpenUrl,
+            favoriteRepos = favoriteRepos,
+            orgRepos = orgRepos,
+            onToggleFavorite = onToggleFavorite,
+        )
+    }
+}
+
+private val BodyMaxWidth = 1120.dp
+private val SidebarWidth = 240.dp
+private val SidebarMinBodyWidth = 760.dp
+
+@Composable
+private fun DashboardBody(
+    state: DashboardUiState.Loaded,
+    sideMargin: Dp,
+    showSidebar: Boolean,
+    onRefresh: () -> Unit,
+    onOpenPr: (PullRequest) -> Unit,
+    onOpenUrl: (String) -> Unit,
+    favoriteRepos: Set<String>,
+    orgRepos: List<String>?,
+    onToggleFavorite: (String) -> Unit,
 ) {
     var sortOption by remember { mutableStateOf(PrSortOption.OLDEST) }
     // 0 = 리뷰 대기 PR, 1.. = 보조 섹션. 앱은 항상 리뷰 대기 PR 탭으로 시작한다.
@@ -86,6 +130,9 @@ private fun DashboardContent(
     var selectedIndex by remember { mutableStateOf(-1) }
     // 본문을 펼친 카드 url. 탭 전환 · 새로고침 후에도 같은 url 이면 펼침을 유지한다.
     var expandedUrls by remember { mutableStateOf(emptySet<String>()) }
+    // 사이드바에서 고른 레포. null = 전체. 앱은 항상 전체로 시작한다.
+    var selectedRepo by remember { mutableStateOf<String?>(null) }
+    var showRepoManager by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
 
     val snapshot = state.snapshot
@@ -105,29 +152,54 @@ private fun DashboardContent(
     var clearedSectionIds by remember(sections) { mutableStateOf(emptySet<String>()) }
     fun itemsOf(result: SectionResult) = if (result.section.id in clearedSectionIds) emptyList() else result.items
 
+    // 사이드바 레포 목록: 즐겨찾기 레포를 이름순으로 (항목이 없어도 표시). 개수는 같은 url 을 한 번만 센다.
+    val repoEntries = prs.map { it.repo to it.url } +
+        sections.flatMap { result -> itemsOf(result).map { it.repo to it.url } }
+    val repoCounts = repoEntries.groupBy({ it.first }, { it.second }).mapValues { (_, urls) -> urls.toSet().size }
+    val repos = favoriteRepos
+        .sortedBy { it.lowercase() }
+        .map { name -> RepoInfo(name, colorForRepo(name), repoCounts[name] ?: 0) }
+    // 관리 모달: '작업 중' 요약과 전체 레포 (조직 목록을 못 불러왔으면 작업 중 + 즐겨찾기만)
+    val workingSummaries = repoSummaries(prs.map { it.repo }, sections.map { result -> result to itemsOf(result).map { it.repo } })
+    val managerRepos = ((orgRepos ?: emptyList()) + workingSummaries.keys + favoriteRepos)
+        .distinct()
+        .sortedBy { it.lowercase() }
+    // 사이드바를 숨겼거나 즐겨찾기에서 빠진 레포면 전체를 보여준다
+    val repoFilter = selectedRepo?.takeIf { repo -> showSidebar && repo in favoriteRepos }
+    val visiblePrs = if (repoFilter == null) prs else prs.filter { it.repo == repoFilter }
+    fun visibleItemsOf(result: SectionResult) =
+        if (repoFilter == null) itemsOf(result) else itemsOf(result).filter { it.repo == repoFilter }
+
     val tabKeys = listOf(REVIEW_TAB_KEY) + sections.map { it.section.id }
-    val tabUrls = listOf(prs.map { it.url }) + sections.map { result -> itemsOf(result).map { it.url } }
+    val allTabUrls = listOf(prs.map { it.url }) + sections.map { result -> itemsOf(result).map { it.url } }
+    val tabUrls = listOf(visiblePrs.map { it.url }) + sections.map { result -> visibleItemsOf(result).map { it.url } }
     val tabIndex = selectedTab.coerceIn(0, tabKeys.lastIndex)
     val currentSection = sections.getOrNull(tabIndex - 1)
     val currentUrls = tabUrls[tabIndex]
 
     // 탭별로 마지막으로 본 항목 url (메모리만). 탭의 첫 정상 결과와 선택 중인 탭은 본 것으로 기록한다.
+    // 레포를 골라 보는 중이면 화면에 보인 항목만 기존 기록에 더한다.
     var seenUrls by remember { mutableStateOf(emptyMap<String, Set<String>>()) }
-    LaunchedEffect(tabUrls, tabIndex) {
+    LaunchedEffect(allTabUrls, tabUrls, tabIndex) {
         seenUrls = seenUrls + tabKeys.indices
             .filter { i ->
                 val loaded = i == 0 || sections[i - 1].errorMessage == null
                 i == tabIndex || (tabKeys[i] !in seenUrls && loaded)
             }
-            .associate { i -> tabKeys[i] to tabUrls[i].toSet() }
+            .associate { i ->
+                val seen = seenUrls[tabKeys[i]]
+                val urls = if (i == tabIndex && repoFilter != null && seen != null) seen + tabUrls[i] else allTabUrls[i]
+                tabKeys[i] to urls.toSet()
+            }
     }
     val tabs = tabKeys.indices.map { i ->
         val seen = seenUrls[tabKeys[i]]
         TabChipInfo(
             label = if (i == 0) "리뷰 대기 PR" else sections[i - 1].section.tabLabel,
             count = when {
-                i == 0 -> prs.size
+                i == 0 -> visiblePrs.size
                 sections[i - 1].section.id in clearedSectionIds -> 0
+                repoFilter != null -> visibleItemsOf(sections[i - 1]).size
                 else -> sections[i - 1].totalCount
             },
             hasNew = i != tabIndex && seen != null && tabUrls[i].any { it !in seen },
@@ -139,19 +211,25 @@ private fun DashboardContent(
         selectedIndex = -1
     }
 
+    fun selectRepo(repo: String?) {
+        selectedRepo = repo
+        selectedIndex = -1
+    }
+
     fun toggleExpanded(url: String) {
         expandedUrls = if (url in expandedUrls) expandedUrls - url else expandedUrls + url
     }
 
     fun openSelected() {
-        if (tabIndex == 0) prs.getOrNull(selectedIndex)?.let(onOpenPr) else currentUrls.getOrNull(selectedIndex)?.let(onOpenUrl)
+        if (tabIndex == 0) visiblePrs.getOrNull(selectedIndex)?.let(onOpenPr) else currentUrls.getOrNull(selectedIndex)?.let(onOpenUrl)
     }
 
     // 정렬 · 새로고침으로 목록이 줄어들면 선택 인덱스를 유효 범위로 맞춘다
     LaunchedEffect(currentUrls.size) {
         if (selectedIndex >= 0) selectedIndex = selectedIndex.coerceAtMost(currentUrls.lastIndex)
     }
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    // 시작 시 · 관리 모달을 닫은 뒤 키보드 단축키가 다시 동작하도록 포커스를 가져온다
+    LaunchedEffect(showRepoManager) { if (!showRepoManager) focusRequester.requestFocus() }
 
     val stats = listOf(
         StatItem(
@@ -180,9 +258,7 @@ private fun DashboardContent(
         ),
     )
 
-    // 창 폭에 비례한 좌우 여백 (1440 창 ≈ 양옆 240, 좁은 창에서도 최소 48)
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val sideMargin = maxOf(48.dp, maxWidth * 0.12f)
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -231,7 +307,7 @@ private fun DashboardContent(
                 modifier = Modifier
                     .padding(horizontal = sideMargin)
                     .fillMaxWidth()
-                    .widthIn(max = 960.dp)
+                    .widthIn(max = BodyMaxWidth)
                     .padding(vertical = 40.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
@@ -245,54 +321,84 @@ private fun DashboardContent(
                 state.refreshError?.let { failure ->
                     RefreshErrorBanner(failure = failure, onRetry = onRefresh, modifier = Modifier.fillMaxWidth())
                 }
-                DashboardTabBar(
-                    tabs = tabs,
-                    selectedIndex = tabIndex,
-                    onSelect = ::selectTab,
+                Row(
                     modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    verticalAlignment = Alignment.Top,
                 ) {
-                    if (tabIndex == 0) SortChip(sortOption = sortOption, onSortSelect = { sortOption = it })
-                    currentSection?.section?.headerAction?.let { action ->
-                        GlassChip(
-                            text = action.label,
-                            onClick = {
-                                action.perform()
-                                clearedSectionIds = clearedSectionIds + currentSection.section.id
-                            },
+                    if (showSidebar) {
+                        RepoSidebar(
+                            repos = repos,
+                            totalCount = repoEntries.distinctBy { it.second }.size,
+                            selectedRepo = repoFilter,
+                            onSelect = ::selectRepo,
+                            onManage = { showRepoManager = true },
+                            modifier = Modifier.width(SidebarWidth),
                         )
                     }
-                    GlassChip(
-                        text = "새로고침",
-                        leading = { Icon(Icons.Default.Refresh, null, tint = MeowColors.TextPrimary, modifier = Modifier.size(14.dp)) },
-                        onClick = onRefresh,
-                    )
-                }
-                if (currentSection == null) {
-                    if (prs.isEmpty()) {
-                        EmptyStateCard("리뷰 요청이 없습니다 🎉", "여유로운 하루 보내세요", Modifier.fillMaxWidth())
-                    } else {
-                        TwoColumnGrid(prs, Modifier.fillMaxWidth()) { index, pr, cellModifier ->
-                            PrRow(
-                                pr = pr,
-                                isSelected = index == selectedIndex,
-                                isExpanded = pr.url in expandedUrls,
-                                onToggleExpand = { selectedIndex = -1; toggleExpanded(pr.url) },
-                                onOpen = { onOpenPr(pr) },
-                                modifier = cellModifier,
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(20.dp),
+                    ) {
+                        DashboardTabBar(
+                            tabs = tabs,
+                            selectedIndex = tabIndex,
+                            onSelect = ::selectTab,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            if (tabIndex == 0) SortChip(sortOption = sortOption, onSortSelect = { sortOption = it })
+                            currentSection?.section?.headerAction?.let { action ->
+                                GlassChip(
+                                    text = action.label,
+                                    onClick = {
+                                        action.perform()
+                                        clearedSectionIds = clearedSectionIds + currentSection.section.id
+                                    },
+                                )
+                            }
+                            GlassChip(
+                                text = "새로고침",
+                                leading = { Icon(Icons.Default.Refresh, null, tint = MeowColors.TextPrimary, modifier = Modifier.size(14.dp)) },
+                                onClick = onRefresh,
+                            )
+                        }
+                        if (currentSection == null) {
+                            if (visiblePrs.isEmpty()) {
+                                EmptyStateCard("리뷰 요청이 없습니다 🎉", "여유로운 하루 보내세요", Modifier.fillMaxWidth())
+                            } else {
+                                TwoColumnGrid(visiblePrs, Modifier.fillMaxWidth()) { index, pr, cellModifier ->
+                                    PrRow(
+                                        pr = pr,
+                                        isSelected = index == selectedIndex,
+                                        isExpanded = pr.url in expandedUrls,
+                                        onToggleExpand = { selectedIndex = -1; toggleExpanded(pr.url) },
+                                        onOpen = { onOpenPr(pr) },
+                                        modifier = cellModifier,
+                                    )
+                                }
+                            }
+                        } else {
+                            SectionTabContent(
+                                result = currentSection,
+                                items = visibleItemsOf(currentSection),
+                                selectedIndex = selectedIndex,
+                                expandedUrls = expandedUrls,
+                                onToggleExpand = { url -> selectedIndex = -1; toggleExpanded(url) },
+                                onOpenUrl = onOpenUrl,
                             )
                         }
                     }
-                } else {
-                    SectionTabContent(
-                        result = currentSection,
-                        items = itemsOf(currentSection),
-                        selectedIndex = selectedIndex,
-                        expandedUrls = expandedUrls,
-                        onToggleExpand = { url -> selectedIndex = -1; toggleExpanded(url) },
-                        onOpenUrl = onOpenUrl,
-                    )
                 }
             }
+        }
+        if (showRepoManager) {
+            RepoManagerDialog(
+                allRepos = managerRepos,
+                summaries = workingSummaries,
+                favorites = favoriteRepos,
+                onToggleFavorite = onToggleFavorite,
+                onDismiss = { showRepoManager = false },
+            )
         }
     }
 }

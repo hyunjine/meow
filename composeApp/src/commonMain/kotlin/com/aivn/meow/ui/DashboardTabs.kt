@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aivn.meow.theme.MeowColors
@@ -132,13 +133,14 @@ private fun TabChip(tab: TabChipInfo, selected: Boolean, onClick: () -> Unit) {
 internal fun <T> TwoColumnGrid(
     items: List<T>,
     modifier: Modifier = Modifier,
+    spacing: Dp = 24.dp,
     cell: @Composable (index: Int, item: T, modifier: Modifier) -> Unit,
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(24.dp)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(spacing)) {
         items.chunked(2).forEachIndexed { rowIndex, pair ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                horizontalArrangement = Arrangement.spacedBy(spacing),
                 verticalAlignment = Alignment.Top,
             ) {
                 pair.forEachIndexed { column, item ->

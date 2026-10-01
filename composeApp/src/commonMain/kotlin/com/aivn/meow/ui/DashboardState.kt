@@ -1,8 +1,11 @@
 package com.aivn.meow.ui
 
+import com.aivn.meow.config.loadFavoriteRepos
+import com.aivn.meow.config.saveFavoriteRepos
 import com.aivn.meow.data.DashboardSnapshot
 import com.aivn.meow.data.PrRepository
 import com.aivn.meow.data.keepPreviousOnError
+import com.aivn.meow.data.workingRepos
 import com.aivn.meow.github.GithubApiException
 import com.aivn.meow.model.PullRequest
 import kotlinx.coroutines.CoroutineScope
@@ -73,17 +76,31 @@ class DashboardViewModel(
     private val _state = MutableStateFlow<DashboardUiState>(DashboardUiState.Loading)
     val state: StateFlow<DashboardUiState> = _state.asStateFlow()
 
-    private val _newRequests = MutableSharedFlow<List<PullRequest>>(extraBufferCapacity = 8)
-    val newRequests: SharedFlow<List<PullRequest>> = _newRequests.asSharedFlow()
+    /** 한 번의 조회(또는 Realtime 이벤트)에서 생긴 알림 묶음. */
+    private val _notices = MutableSharedFlow<List<MeowNotice>>(extraBufferCapacity = 8)
+    val notices: SharedFlow<List<MeowNotice>> = _notices.asSharedFlow()
+
+    /** 조직의 전체 레포 이름. 아직 못 불러왔거나 실패했으면 null. */
+    private val _orgRepos = MutableStateFlow<List<String>?>(null)
+    val orgRepos: StateFlow<List<String>?> = _orgRepos.asStateFlow()
+
+    /** 즐겨찾기 레포. 저장 파일이 없으면 첫 정상 로딩 후 '작업 중' 레포로 한 번 채운다. */
+    private val storedFavorites = loadFavoriteRepos()
+    private var favoritesSeeded = storedFavorites != null
+    private val _favorites = MutableStateFlow(storedFavorites.orEmpty())
+    val favorites: StateFlow<Set<String>> = _favorites.asStateFlow()
 
     private var pollJob: Job? = null
     private var manualJob: Job? = null
+    private var orgReposJob: Job? = null
 
     private var seenIds: Set<String> = emptySet()
     private var seenInitialised: Boolean = false
+    private val sectionTracker = SectionNoticeTracker()
 
     fun start() {
         if (pollJob?.isActive == true) return
+        loadOrgRepos()
         pollJob = scope.launch {
             fetchOnce(auto = false)
             while (isActive) {
@@ -96,6 +113,22 @@ class DashboardViewModel(
     fun refresh() {
         manualJob?.cancel()
         manualJob = scope.launch { fetchOnce(auto = false) }
+        loadOrgRepos()
+    }
+
+    fun toggleFavorite(repo: String) {
+        val current = _favorites.value
+        _favorites.value = if (repo in current) current - repo else current + repo
+        favoritesSeeded = true
+        saveFavoriteRepos(_favorites.value)
+    }
+
+    /** 실패해도 대시보드에는 영향 없이 직전 목록(없으면 null)을 유지한다. */
+    private fun loadOrgRepos() {
+        orgReposJob?.cancel()
+        orgReposJob = scope.launch {
+            runCatching { repository.loadOrgRepos(org) }.onSuccess { _orgRepos.value = it }
+        }
     }
 
     /** Realtime push 로 도착한 신규 PR 하나를 내부 seen set 에 반영 + 알림 emit. */
@@ -103,7 +136,7 @@ class DashboardViewModel(
         val alreadySeen = seenInitialised && pr.url in seenIds
         if (alreadySeen) return
         seenIds = seenIds + pr.url
-        scope.launch { _newRequests.emit(listOf(pr)) }
+        scope.launch { _notices.emit(listOf(MeowNotice.ReviewRequested(pr))) }
     }
 
     private suspend fun fetchOnce(auto: Boolean) {
@@ -118,6 +151,11 @@ class DashboardViewModel(
                 val previousSections = (prior as? DashboardUiState.Loaded)?.snapshot?.sections.orEmpty()
                 val snapshot = loaded.copy(sections = loaded.sections.keepPreviousOnError(previousSections))
                 emitDiff(snapshot)
+                if (!favoritesSeeded) {
+                    favoritesSeeded = true
+                    _favorites.value = snapshot.workingRepos()
+                    saveFavoriteRepos(_favorites.value)
+                }
                 _state.value = DashboardUiState.Loaded(snapshot, refreshing = false)
             }
             .onFailure { throwable ->
@@ -133,14 +171,19 @@ class DashboardViewModel(
     }
 
     private suspend fun emitDiff(snapshot: DashboardSnapshot) {
+        val notices = reviewRequestNotices(snapshot) + sectionTracker.diff(snapshot.sections)
+        if (notices.isNotEmpty()) _notices.emit(notices)
+    }
+
+    private fun reviewRequestNotices(snapshot: DashboardSnapshot): List<MeowNotice> {
         val currentIds = snapshot.pullRequests.map { it.url }.toSet()
         if (!seenInitialised) {
             seenIds = currentIds
             seenInitialised = true
-            return
+            return emptyList()
         }
         val fresh = snapshot.pullRequests.filter { it.url !in seenIds }
         seenIds = currentIds
-        if (fresh.isNotEmpty()) _newRequests.emit(fresh)
+        return fresh.map { MeowNotice.ReviewRequested(it) }
     }
 }

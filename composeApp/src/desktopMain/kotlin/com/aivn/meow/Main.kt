@@ -1,11 +1,5 @@
 package com.aivn.meow
 
-import androidx.compose.runtime.remember
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Notification
@@ -17,25 +11,37 @@ import androidx.compose.ui.window.rememberWindowState
 import com.aivn.meow.config.loadAppConfig
 import com.aivn.meow.config.readGithubToken
 import com.aivn.meow.github.GithubClient
+import com.aivn.meow.model.SectionItem
+import com.aivn.meow.ui.MeowNotice
 import io.ktor.client.engine.cio.CIO
 import java.awt.Desktop
 import java.net.URI
+import meow.composeapp.generated.resources.Res
+import meow.composeapp.generated.resources.app_icon
+import meow.composeapp.generated.resources.tray_template
+import org.jetbrains.compose.resources.painterResource
 
-fun main() = application {
+fun main() {
+    // 메뉴 바 아이콘을 macOS 템플릿 이미지로 표시해 다크/라이트 메뉴 바 모두에서 보이게 한다 (JDK 21+ 지원).
+    // build.gradle.kts 의 jvmArgs 에도 넣었지만, 다른 실행 경로를 위해 Tray 생성 전에 한 번 더 지정한다.
+    System.setProperty("apple.awt.enableTemplateImages", "true")
+    runApp()
+}
+
+private fun runApp() = application {
     val config = loadAppConfig()
     val trayState = rememberTrayState()
-    val icon = remember { MeowIconPainter() }
 
     Tray(
         state = trayState,
-        icon = icon,
+        icon = painterResource(Res.drawable.tray_template),
         tooltip = "Meow · PR Review",
     )
 
     Window(
         onCloseRequest = ::exitApplication,
         title = "Meow",
-        icon = icon,
+        icon = painterResource(Res.drawable.app_icon),
         state = rememberWindowState(size = DpSize(1440.dp, 900.dp)),
     ) {
         if (config == null) {
@@ -46,20 +52,54 @@ fun main() = application {
                 // 요청마다 토큰을 다시 읽어, 교체된 토큰이 재시작 없이 반영되게 한다. 읽기 실패 시 시작 시 토큰 사용.
                 githubClientFactory = { token -> GithubClient({ readGithubToken() ?: token }, CIO) },
                 onOpenUrl = ::openUrlInBrowser,
-                onNewRequests = { prs ->
-                    prs.forEach { pr ->
-                        trayState.sendNotification(
-                            Notification(
-                                title = "새 PR 리뷰 요청 · ${pr.repo}",
-                                message = "#${pr.number} · ${pr.title} — @${pr.author}",
-                                type = Notification.Type.Info,
-                            )
-                        )
-                    }
-                },
+                onNotices = { notices -> notices.toNotifications().forEach(trayState::sendNotification) },
             )
         }
     }
+}
+
+/** 한 번의 조회에서 이 수 이상이면 개별 알림 대신 한 건으로 묶는다. */
+private const val GROUP_THRESHOLD = 4
+private const val COMMENT_PREVIEW_LENGTH = 60
+
+private fun List<MeowNotice>.toNotifications(): List<Notification> {
+    if (size < GROUP_THRESHOLD) return map { it.toNotification() }
+    // 종류별 개수 요약. 예) 리뷰 요청 2 · 멘션 1 · 새 댓글 3
+    val summary = groupBy { it.kindLabel() }.entries.joinToString(" · ") { (label, list) -> "$label ${list.size}" }
+    return listOf(Notification(title = "새 알림 ${size}건", message = summary, type = Notification.Type.Info))
+}
+
+private fun MeowNotice.kindLabel(): String = when (this) {
+    is MeowNotice.ReviewRequested -> "리뷰 요청"
+    is MeowNotice.Mentioned -> "멘션"
+    is MeowNotice.NewComment -> "새 댓글"
+    is MeowNotice.Assigned -> "할당 이슈"
+    is MeowNotice.MyPrReviewed -> if (approved) "내 PR 승인" else "내 PR 변경 요청"
+}
+
+private fun MeowNotice.toNotification(): Notification {
+    val (title, message) = when (this) {
+        is MeowNotice.ReviewRequested ->
+            "새 PR 리뷰 요청 · ${pr.repo}" to "#${pr.number} · ${pr.title} — @${pr.author}"
+        is MeowNotice.Mentioned ->
+            "나를 멘션했어요 · ${item.repo}" to "#${item.number} · ${item.title} — @${item.author}"
+        is MeowNotice.NewComment ->
+            "내 이슈에 새 댓글 · ${item.repo}" to "#${item.number} · ${item.title}" + commentPreview(item)
+        is MeowNotice.Assigned ->
+            "새로 할당된 이슈 · ${item.repo}" to "#${item.number} · ${item.title}"
+        is MeowNotice.MyPrReviewed ->
+            "${if (approved) "내 PR 승인됨" else "내 PR 변경 요청"} · ${item.repo}" to "#${item.number} · ${item.title}"
+    }
+    return Notification(title = title, message = message, type = Notification.Type.Info)
+}
+
+/** 새 댓글 항목의 detail 은 "@작성자 님의 댓글", body 는 댓글 전문. 데이터에 있는 만큼만 붙인다. */
+private fun commentPreview(item: SectionItem): String {
+    val commenter = item.detail?.removeSuffix(" 님의 댓글")
+    val text = item.body?.replace(Regex("\\s+"), " ")?.trim()?.takeIf { it.isNotEmpty() }
+        ?.let { if (it.length > COMMENT_PREVIEW_LENGTH) it.take(COMMENT_PREVIEW_LENGTH) + "…" else it }
+    val line = listOfNotNull(commenter, text).joinToString(": ")
+    return if (line.isEmpty()) "" else "\n$line"
 }
 
 private fun openUrlInBrowser(url: String) {
@@ -67,26 +107,5 @@ private fun openUrlInBrowser(url: String) {
         if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
             Desktop.getDesktop().browse(URI(url))
         }
-    }
-}
-
-private class MeowIconPainter : Painter() {
-    override val intrinsicSize: Size = Size(64f, 64f)
-
-    override fun DrawScope.onDraw() {
-        drawRoundRect(
-            color = Color(0xFF3D5EFF),
-            cornerRadius = CornerRadius(size.width * 0.24f, size.height * 0.24f),
-        )
-        drawCircle(
-            color = Color.White,
-            radius = size.minDimension * 0.22f,
-            center = center.copy(x = center.x - size.width * 0.14f, y = center.y - size.height * 0.02f),
-        )
-        drawCircle(
-            color = Color.White,
-            radius = size.minDimension * 0.22f,
-            center = center.copy(x = center.x + size.width * 0.14f, y = center.y - size.height * 0.02f),
-        )
     }
 }
