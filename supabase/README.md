@@ -16,11 +16,18 @@ GitHub Webhook  →  Supabase Edge Function (gh-webhook)
 | `pull_request` | `opened` / `edited` 본문의 `@멘션` | `notify_events` · `mentioned` | 멘션된 사람 (edited 는 새로 추가된 멘션만) |
 | `issues` | `assigned` | `notify_events` · `assigned` | 할당된 사람 |
 | `issues` | `opened` / `edited` 본문의 `@멘션` | `notify_events` · `mentioned` | 멘션된 사람 (edited 는 새로 추가된 멘션만) |
-| `issue_comment` | `created` · 이슈(PR 제외) 작성자 ≠ 댓글 작성자 | `notify_events` · `new_comment` | 이슈 작성자 |
-| `issue_comment` | `created` 댓글의 `@멘션` | `notify_events` · `mentioned` | 멘션된 사람 (작성자 본인 · 새 댓글 알림을 받은 이슈 작성자 제외) |
+| `issue_comment` | `created` · 이슈 작성자 ≠ 댓글 작성자 | `notify_events` · `new_comment` | 이슈 작성자 |
+| `issue_comment` | `created` · PR 작성자 ≠ 댓글 작성자 | `notify_events` · `pr_comment` | PR 작성자 |
+| `issue_comment` | `created` · 앞서 댓글 · 리뷰를 남긴 스레드 | `notify_events` · `thread_comment` | 참여자 (댓글 작성자 · 스레드 작성자 제외) |
+| `issue_comment` | `created` 댓글의 `@멘션` | `notify_events` · `mentioned` | 멘션된 사람 (작성자 본인 제외) |
 | `pull_request_review` | `submitted` · `approved` / `changes_requested` | `notify_events` · `pr_review` | PR 작성자 |
+| `pull_request_review` | `submitted` · `commented` · 본문 있음 | `notify_events` · `pr_review_comment` (+ 본문 `@멘션` 은 `mentioned`) | PR 작성자 |
 
 `notify_events.target_login` 은 소문자로 저장되고, 같은 delivery 의 재전송은 `(delivery_id, kind, target_login)` unique 로 무시됩니다.
+같은 댓글 · 리뷰에서 멘션된 사람에게는 `new_comment` · `pr_comment` · `pr_review_comment` · `thread_comment` 대신 `mentioned` 한 건만 보냅니다.
+
+참여한 스레드는 `thread_participants(repo_full_name, number, login, last_commented_at)` 에 웹훅으로 본 댓글 · 리뷰 작성자(봇 제외)를
+기록해 판단합니다. 이 테이블이 생기기 전의 참여는 서버가 모르므로, 그런 스레드는 앱의 60초 조회('새 댓글' 탭)가 알립니다.
 
 ## 1. 사전 준비
 
@@ -52,7 +59,7 @@ supabase db reset
 supabase db push
 ```
 
-`migrations/` 의 SQL(`pr_events` · 라벨 컬럼 · `notify_events`)이 순서대로 실행됩니다.
+`migrations/` 의 SQL(`pr_events` · 라벨 컬럼 · `notify_events` · `thread_participants`)이 순서대로 실행됩니다.
 
 ## 4. Edge Function 배포
 
@@ -144,7 +151,8 @@ supabase/scripts/setup.sh \
 1. 다른 계정으로 위 6개 저장소 중 하나에 PR 생성 → hyunjine 에게 리뷰 요청
 2. Supabase Dashboard → Table Editor → `pr_events` 에 새 행 뜨는지 확인
 3. macOS 알림 배너 팝업 (5초 안팎)
-4. 다른 계정으로 내 이슈에 댓글 · `@hyunjine` 멘션 · 이슈 할당 · 내 PR 승인을 해 보고 `notify_events` 에 행이 생기고 알림이 뜨는지 확인.
+4. 다른 계정으로 내 이슈 · PR 에 댓글 · 내 PR 에 Comment 리뷰 · 내가 댓글 단 스레드에 댓글 · `@hyunjine` 멘션 · 이슈 할당 · 내 PR 승인을 해 보고
+   `notify_events` 에 행이 생기고 알림이 뜨는지 확인.
    다음 60초 조회에서 같은 항목 알림이 한 번 더 뜨지 않아야 한다.
 
 ## 로그 확인
@@ -165,4 +173,4 @@ supabase functions logs gh-webhook --tail
 
 - Edge Function 삭제: `supabase functions delete gh-webhook`
 - 웹훅 삭제: 각 저장소 Settings → Webhooks → Delete
-- 테이블 삭제: `drop table public.pr_events cascade;`, `drop table public.notify_events cascade;`
+- 테이블 삭제: `drop table public.pr_events cascade;`, `drop table public.notify_events cascade;`, `drop table public.thread_participants;`
