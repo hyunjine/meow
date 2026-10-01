@@ -1,0 +1,32 @@
+name: Release
+
+# dev/vX.Y.Z → release PR 이 머지되면 브랜치 이름에서 버전을 파싱해
+# vX.Y.Z 태그와 GitHub Release 를 만든다. 노트는 직전 릴리즈 이후 머지된 PR 목록.
+on:
+  pull_request:
+    types: [closed]
+    branches: [release]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true && startsWith(github.head_ref, 'dev/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: 태그 · 릴리즈 생성
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD: ${{ github.head_ref }}
+          SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          VER="${HEAD#dev/}"
+          [[ "$VER" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::브랜치 이름에서 버전을 찾지 못했어요: $HEAD"; exit 1; }
+          PREV=$(gh release list --repo "$REPO" --limit 1 --exclude-drafts --json tagName --jq '.[0].tagName // empty')
+          ARGS=(--repo "$REPO" --target "$SHA" --title "$VER" --generate-notes)
+          if [ -n "$PREV" ]; then ARGS+=(--notes-start-tag "$PREV"); fi
+          gh release create "$VER" "${ARGS[@]}"
+          echo "릴리즈 $VER 생성 (이전: ${PREV:-없음})" >> "$GITHUB_STEP_SUMMARY"

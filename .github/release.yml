@@ -1,0 +1,16 @@
+# GitHub Release 자동 노트 분류 (PR 라벨 기준)
+changelog:
+  exclude:
+    labels:
+      - "🚀 Release"
+  categories:
+    - title: ✨ 새 기능
+      labels: ["💻 Feat"]
+    - title: 🐛 버그 수정
+      labels: ["🛠️ Fix", "🔥 Bug"]
+    - title: 🪄 리팩터링
+      labels: ["🪄 Refactor"]
+    - title: ⚙️ 설정 · 인프라
+      labels: ["⚙️ Setting"]
+    - title: 기타
+      labels: ["*"]
