@@ -39,6 +39,8 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "com.aivn.meow.MainKt"
+        // 메뉴 바(트레이) 아이콘을 템플릿 이미지로 — 다크/라이트 메뉴 바에 맞춰 색이 바뀐다 (JDK 21+).
+        jvmArgs += listOf("-Dapple.awt.enableTemplateImages=true")
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg)
@@ -51,6 +53,8 @@ compose.desktop {
             macOS {
                 bundleID = "com.aivn.meow"
                 dockName = "Meow"
+                // scripts/make-icns.sh 로 app_icon.png(1024) 에서 생성
+                iconFile.set(project.file("icons/meow.icns"))
             }
         }
     }

@@ -1,11 +1,5 @@
 package com.aivn.meow
 
-import androidx.compose.runtime.remember
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Notification
@@ -20,22 +14,32 @@ import com.aivn.meow.github.GithubClient
 import io.ktor.client.engine.cio.CIO
 import java.awt.Desktop
 import java.net.URI
+import meow.composeapp.generated.resources.Res
+import meow.composeapp.generated.resources.app_icon
+import meow.composeapp.generated.resources.tray_template
+import org.jetbrains.compose.resources.painterResource
 
-fun main() = application {
+fun main() {
+    // 메뉴 바 아이콘을 macOS 템플릿 이미지로 표시해 다크/라이트 메뉴 바 모두에서 보이게 한다 (JDK 21+ 지원).
+    // build.gradle.kts 의 jvmArgs 에도 넣었지만, 다른 실행 경로를 위해 Tray 생성 전에 한 번 더 지정한다.
+    System.setProperty("apple.awt.enableTemplateImages", "true")
+    runApp()
+}
+
+private fun runApp() = application {
     val config = loadAppConfig()
     val trayState = rememberTrayState()
-    val icon = remember { MeowIconPainter() }
 
     Tray(
         state = trayState,
-        icon = icon,
+        icon = painterResource(Res.drawable.tray_template),
         tooltip = "Meow · PR Review",
     )
 
     Window(
         onCloseRequest = ::exitApplication,
         title = "Meow",
-        icon = icon,
+        icon = painterResource(Res.drawable.app_icon),
         state = rememberWindowState(size = DpSize(1440.dp, 900.dp)),
     ) {
         if (config == null) {
@@ -67,26 +71,5 @@ private fun openUrlInBrowser(url: String) {
         if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
             Desktop.getDesktop().browse(URI(url))
         }
-    }
-}
-
-private class MeowIconPainter : Painter() {
-    override val intrinsicSize: Size = Size(64f, 64f)
-
-    override fun DrawScope.onDraw() {
-        drawRoundRect(
-            color = Color(0xFF3D5EFF),
-            cornerRadius = CornerRadius(size.width * 0.24f, size.height * 0.24f),
-        )
-        drawCircle(
-            color = Color.White,
-            radius = size.minDimension * 0.22f,
-            center = center.copy(x = center.x - size.width * 0.14f, y = center.y - size.height * 0.02f),
-        )
-        drawCircle(
-            color = Color.White,
-            radius = size.minDimension * 0.22f,
-            center = center.copy(x = center.x + size.width * 0.14f, y = center.y - size.height * 0.02f),
-        )
     }
 }
