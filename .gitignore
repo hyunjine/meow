@@ -33,3 +33,6 @@ local.properties
 
 # Claude Code local settings
 .claude/
+
+# Supabase CLI 로컬 상태 (supabase link)
+supabase/.temp/
