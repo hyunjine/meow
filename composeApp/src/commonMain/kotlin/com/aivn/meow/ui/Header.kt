@@ -26,6 +26,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
+import meow.composeapp.generated.resources.Res
+import meow.composeapp.generated.resources.app_icon
+import org.jetbrains.compose.resources.painterResource
 
 @Composable
 fun DashboardHeader(
@@ -52,28 +55,30 @@ fun DashboardHeader(
                     .border(1.dp, MeowColors.GlassBorder, RoundedCornerShape(14.dp))
                     .padding(horizontal = 16.dp, vertical = 10.dp),
             ) {
-                Text(
-                    text = "🐾  Meow",
-                    color = MeowColors.TextPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Image(
+                        painter = painterResource(Res.drawable.app_icon),
+                        contentDescription = null,
+                        modifier = Modifier.size(26.dp).clip(RoundedCornerShape(7.dp)),
+                    )
+                    Text(
+                        text = "Meow",
+                        color = MeowColors.TextPrimary,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = "PR Review Dashboard",
-                    color = MeowColors.TextPrimary,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    text = "Team-AIVN에서 나에게 리뷰 요청된 PR을 한 곳에서",
-                    color = MeowColors.TextSecondary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
+            Text(
+                text = "PR Review Dashboard",
+                color = MeowColors.TextPrimary,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+            )
         }
 
         Row(
