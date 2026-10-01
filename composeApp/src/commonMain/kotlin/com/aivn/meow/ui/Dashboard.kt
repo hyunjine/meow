@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -172,101 +173,105 @@ private fun DashboardContent(
         ),
     )
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .focusRequester(focusRequester)
-            .focusable()
-            .onPreviewKeyEvent { keyEvent ->
-                if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                // ⌘1~⌘9 탭 전환
-                val shortcutTab = TabShortcutKeys.indexOf(keyEvent.key)
-                if (keyEvent.isMetaPressed && shortcutTab in tabKeys.indices) {
-                    selectTab(shortcutTab)
-                    return@onPreviewKeyEvent true
-                }
-                when (keyEvent.key) {
-                    Key.DirectionDown, Key.J -> {
-                        if (currentUrls.isNotEmpty()) selectedIndex = (selectedIndex + 1).coerceAtMost(currentUrls.lastIndex)
-                        true
-                    }
-                    Key.DirectionUp, Key.K -> {
-                        if (currentUrls.isNotEmpty()) selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
-                        true
-                    }
-                    Key.Enter, Key.NumPadEnter -> {
-                        openSelected()
-                        true
-                    }
-                    Key.R -> {
-                        if (keyEvent.isMetaPressed) {
-                            onRefresh()
-                            true
-                        } else {
-                            false
-                        }
-                    }
-                    else -> false
-                }
-            }
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+    // 창 폭에 비례한 좌우 여백 (1440 창 ≈ 양옆 240, 좁은 창에서도 최소 48)
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val sideMargin = maxOf(48.dp, maxWidth * 0.12f)
         Column(
             modifier = Modifier
-                .padding(horizontal = 24.dp)
-                .fillMaxWidth()
-                .widthIn(max = 960.dp)
-                .padding(vertical = 40.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
-            DashboardHeader(
-                lastSyncLabel = formatSyncLabel(snapshot.fetchedAtIso),
-                userInitials = snapshot.viewerInitials,
-                avatarUrl = snapshot.avatarUrl,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            StatCards(stats = stats, modifier = Modifier.fillMaxWidth())
-            state.refreshError?.let { failure ->
-                RefreshErrorBanner(failure = failure, onRetry = onRefresh, modifier = Modifier.fillMaxWidth())
-            }
-            DashboardTabBar(
-                tabs = tabs,
-                selectedIndex = tabIndex,
-                onSelect = ::selectTab,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                if (tabIndex == 0) SortChip(sortOption = sortOption, onSortSelect = { sortOption = it })
-                currentSection?.section?.headerAction?.let { action ->
-                    GlassChip(
-                        text = action.label,
-                        onClick = {
-                            action.perform()
-                            clearedSectionIds = clearedSectionIds + currentSection.section.id
-                        },
-                    )
-                }
-                GlassChip(
-                    text = "새로고침",
-                    leading = { Icon(Icons.Default.Refresh, null, tint = MeowColors.TextPrimary, modifier = Modifier.size(14.dp)) },
-                    onClick = onRefresh,
-                )
-            }
-            if (currentSection == null) {
-                if (prs.isEmpty()) {
-                    EmptyStateCard("리뷰 요청이 없습니다 🎉", "여유로운 하루 보내세요", Modifier.fillMaxWidth())
-                } else {
-                    TwoColumnGrid(prs, Modifier.fillMaxWidth()) { index, pr, cellModifier ->
-                        PrRow(pr = pr, isSelected = index == selectedIndex, onOpen = { onOpenPr(pr) }, modifier = cellModifier)
+                .fillMaxSize()
+                .focusRequester(focusRequester)
+                .focusable()
+                .onPreviewKeyEvent { keyEvent ->
+                    if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    // ⌘1~⌘9 탭 전환
+                    val shortcutTab = TabShortcutKeys.indexOf(keyEvent.key)
+                    if (keyEvent.isMetaPressed && shortcutTab in tabKeys.indices) {
+                        selectTab(shortcutTab)
+                        return@onPreviewKeyEvent true
+                    }
+                    when (keyEvent.key) {
+                        Key.DirectionDown, Key.J -> {
+                            if (currentUrls.isNotEmpty()) selectedIndex = (selectedIndex + 1).coerceAtMost(currentUrls.lastIndex)
+                            true
+                        }
+                        Key.DirectionUp, Key.K -> {
+                            if (currentUrls.isNotEmpty()) selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
+                            true
+                        }
+                        Key.Enter, Key.NumPadEnter -> {
+                            openSelected()
+                            true
+                        }
+                        Key.R -> {
+                            if (keyEvent.isMetaPressed) {
+                                onRefresh()
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                        else -> false
                     }
                 }
-            } else {
-                SectionTabContent(
-                    result = currentSection,
-                    items = itemsOf(currentSection),
-                    selectedIndex = selectedIndex,
-                    onOpenUrl = onOpenUrl,
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = sideMargin)
+                    .fillMaxWidth()
+                    .widthIn(max = 960.dp)
+                    .padding(vertical = 40.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                DashboardHeader(
+                    lastSyncLabel = formatSyncLabel(snapshot.fetchedAtIso),
+                    userInitials = snapshot.viewerInitials,
+                    avatarUrl = snapshot.avatarUrl,
+                    modifier = Modifier.fillMaxWidth(),
                 )
+                StatCards(stats = stats, modifier = Modifier.fillMaxWidth())
+                state.refreshError?.let { failure ->
+                    RefreshErrorBanner(failure = failure, onRetry = onRefresh, modifier = Modifier.fillMaxWidth())
+                }
+                DashboardTabBar(
+                    tabs = tabs,
+                    selectedIndex = tabIndex,
+                    onSelect = ::selectTab,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (tabIndex == 0) SortChip(sortOption = sortOption, onSortSelect = { sortOption = it })
+                    currentSection?.section?.headerAction?.let { action ->
+                        GlassChip(
+                            text = action.label,
+                            onClick = {
+                                action.perform()
+                                clearedSectionIds = clearedSectionIds + currentSection.section.id
+                            },
+                        )
+                    }
+                    GlassChip(
+                        text = "새로고침",
+                        leading = { Icon(Icons.Default.Refresh, null, tint = MeowColors.TextPrimary, modifier = Modifier.size(14.dp)) },
+                        onClick = onRefresh,
+                    )
+                }
+                if (currentSection == null) {
+                    if (prs.isEmpty()) {
+                        EmptyStateCard("리뷰 요청이 없습니다 🎉", "여유로운 하루 보내세요", Modifier.fillMaxWidth())
+                    } else {
+                        TwoColumnGrid(prs, Modifier.fillMaxWidth()) { index, pr, cellModifier ->
+                            PrRow(pr = pr, isSelected = index == selectedIndex, onOpen = { onOpenPr(pr) }, modifier = cellModifier)
+                        }
+                    }
+                } else {
+                    SectionTabContent(
+                        result = currentSection,
+                        items = itemsOf(currentSection),
+                        selectedIndex = selectedIndex,
+                        onOpenUrl = onOpenUrl,
+                    )
+                }
             }
         }
     }
