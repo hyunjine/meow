@@ -3,6 +3,8 @@ package com.aivn.meow.realtime
 import androidx.compose.ui.graphics.Color
 import com.aivn.meow.config.SupabaseConfig
 import com.aivn.meow.model.CiStatus
+import com.aivn.meow.model.CommentMeta
+import com.aivn.meow.model.CommentSource
 import com.aivn.meow.model.ItemKind
 import com.aivn.meow.model.Label
 import com.aivn.meow.model.PullRequest
@@ -58,7 +60,8 @@ private data class NotifyEventRow(
 )
 
 /**
- * Supabase Realtime 을 통해 `pr_events`(리뷰 요청) · `notify_events`(#3 멘션 · 새 댓글 · 할당 · 내 PR 리뷰)의
+ * Supabase Realtime 을 통해 `pr_events`(리뷰 요청) · `notify_events`(#3 멘션 · 새 댓글 · 할당 · 내 PR 리뷰, #84 내 PR 댓글 ·
+ * Comment 리뷰 · 참여한 스레드 댓글)의
  * INSERT 를 한 채널로 구독해 [MeowNotice] 로 매핑한다. 서버 필터와 같은 조건으로 로컬에서도 한 번 더 거른다.
  */
 class RealtimeService(private val config: SupabaseConfig) {
@@ -103,11 +106,19 @@ class RealtimeService(private val config: SupabaseConfig) {
 /**
  * 60초 조회 섹션의 [SectionItem] 과 같은 모양으로 매핑해 #66 알림 문구를 그대로 쓴다.
  * 새 댓글은 detail · body 를 섹션과 같은 형식("@작성자 님의 댓글", 댓글 본문)으로, 멘션은 멘션한 사람을 작성자로 둔다.
+ * #84 새 댓글 계열 kind 는 url 이 댓글(리뷰) url 이라 섹션 항목과 같은 url 로 중복이 걸러진다.
  */
 private fun NotifyEventRow.toNotice(): MeowNotice? {
     val repoShort = repoFullName.substringAfter('/', repoFullName)
     val color = colorForRepo(repoShort)
     val authorLogin = actor ?: "unknown"
+    val commentSource = when (kind) {
+        "new_comment" -> CommentSource.MyIssue
+        "pr_comment" -> CommentSource.MyPr
+        "pr_review_comment" -> CommentSource.PrReview
+        "thread_comment" -> CommentSource.Thread
+        else -> null
+    }
     val item = SectionItem(
         kind = if ("/pull/" in url) ItemKind.PullRequest else ItemKind.Issue,
         repo = repoShort,
@@ -119,12 +130,19 @@ private fun NotifyEventRow.toNotice(): MeowNotice? {
         updatedAtIso = "",
         labels = emptyList(),
         url = url,
-        detail = if (kind == "new_comment") "@$authorLogin 님의 댓글" else null,
+        detail = when (commentSource) {
+            null -> null
+            CommentSource.PrReview -> "@$authorLogin 님의 리뷰 의견"
+            else -> "@$authorLogin 님의 댓글"
+        },
         body = excerpt,
+        comment = commentSource?.let {
+            CommentMeta(source = it, commenter = authorLogin, threadUrl = url.substringBefore('#'))
+        },
     )
+    if (commentSource != null) return MeowNotice.NewComment(item)
     return when (kind) {
         "mentioned" -> MeowNotice.Mentioned(item)
-        "new_comment" -> MeowNotice.NewComment(item)
         "assigned" -> MeowNotice.Assigned(item)
         "pr_review" -> when (reviewState) {
             "approved" -> MeowNotice.MyPrReviewed(item.copy(reviewState = "APPROVED"), approved = true)

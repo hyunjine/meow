@@ -1,18 +1,26 @@
 package com.aivn.meow.ui
 
 import com.aivn.meow.data.SectionResult
+import com.aivn.meow.model.CommentSource
 import com.aivn.meow.model.PullRequest
 import com.aivn.meow.model.SectionItem
 import com.aivn.meow.ui.sections.AssignedIssuesSection
 import com.aivn.meow.ui.sections.MentionsSection
 import com.aivn.meow.ui.sections.MyIssueCommentsSection
 import com.aivn.meow.ui.sections.MyPrStatusSection
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.minutes
 
 /** #66 macOS 알림 한 건의 원인. 표시 문구는 플랫폼(Main.kt)에서 만든다. */
 sealed interface MeowNotice {
     data class ReviewRequested(val pr: PullRequest) : MeowNotice
     data class Mentioned(val item: SectionItem) : MeowNotice
-    data class NewComment(val item: SectionItem) : MeowNotice
+    /** #84 내 이슈 · 내 PR · Comment 리뷰 · 참여한 스레드의 새 댓글. 출처는 [source]. */
+    data class NewComment(val item: SectionItem) : MeowNotice {
+        val source: CommentSource get() = item.comment?.source ?: CommentSource.MyIssue
+    }
     data class Assigned(val item: SectionItem) : MeowNotice
     /** 내 PR 의 리뷰 상태가 승인([approved]) 또는 변경 요청으로 바뀜. */
     data class MyPrReviewed(val item: SectionItem, val approved: Boolean) : MeowNotice
@@ -21,8 +29,9 @@ sealed interface MeowNotice {
 /**
  * 보조 섹션 결과를 직전 조회와 비교해 알림거리를 뽑는다. 섹션마다 첫 정상 결과는 기준값(알림 없음)이고,
  * 실패한 섹션(직전 목록 유지 포함)은 비교하지 않는다.
+ * #84 나를 멘션한 새 댓글은 새 댓글 대신 멘션으로 한 번만 알린다 ([mentionNoticedAt] 참고).
  */
-internal class SectionNoticeTracker {
+internal class SectionNoticeTracker(private val now: () -> Instant = { Clock.System.now() }) {
     /** 섹션 id → 직전 url 집합. 새 댓글 섹션은 '모두 확인' 으로 비워졌다 다시 나타날 수 있어 한 번이라도 본 url 을 누적한다. */
     private val seenUrls = mutableMapOf<String, Set<String>>()
 
@@ -38,8 +47,17 @@ internal class SectionNoticeTracker {
     /** #3 Realtime 으로 먼저 알린 내 PR url → reviewDecision. 조회에서 같은 상태가 보이면 생략하고 지운다. */
     private val realtimeReviewStates = mutableMapOf<String, String>()
 
+    /**
+     * #84 스레드 url → 마지막으로 멘션 알림을 보낸 시각 (조회 · Realtime · 멘션 댓글 모두).
+     * 나를 멘션한 새 댓글은 이 시각이 댓글 작성 시각 무렵 이후면 이미 멘션으로 알린 것으로 보고 생략한다.
+     */
+    private val mentionNoticedAt = mutableMapOf<String, Instant>()
+
     fun diff(sections: List<SectionResult>): List<MeowNotice> = buildList {
-        for (result in sections) {
+        val at = now()
+        mentionNoticedAt.entries.removeAll { it.value < at - MENTION_MEMORY }
+        // 멘션 섹션을 먼저 비교해, 같은 조회의 새 댓글이 같은 멘션을 다시 알리지 않게 한다.
+        for (result in sections.sortedBy { it.section.id == MyIssueCommentsSection.id }) {
             if (result.errorMessage != null) continue
             val id = result.section.id
             if (id == MyPrStatusSection.id) {
@@ -60,10 +78,35 @@ internal class SectionNoticeTracker {
             if (previous != null) {
                 result.items
                     .filter { it.url !in previous && (announced == null || it.url !in announced) }
-                    .forEach { add(notice(it)) }
+                    .forEach { item ->
+                        when (id) {
+                            MentionsSection.id -> {
+                                mentionNoticedAt[item.url] = at
+                                add(notice(item))
+                            }
+                            MyIssueCommentsSection.id -> commentNotice(item, at)?.let(::add)
+                            else -> add(notice(item))
+                        }
+                    }
             }
             announced?.removeAll(current)
         }
+    }
+
+    /**
+     * #84 새 댓글 한 건의 알림. 나를 멘션한 댓글은 멘션으로 알리되, 같은 스레드의 멘션 알림이 이미 나갔으면 생략한다.
+     * 멘션으로 알린 스레드는 Realtime 기록에 넣어 멘션 섹션 diff 가 다시 알리지 않게 한다.
+     */
+    private fun commentNotice(item: SectionItem, at: Instant): MeowNotice? {
+        val meta = item.comment
+        if (meta == null || !meta.mentionsMe) return MeowNotice.NewComment(item)
+        val createdAt = meta.createdAtIso?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: at
+        val noticed = mentionNoticedAt[meta.threadUrl]
+        if (noticed != null && noticed >= createdAt - MENTION_SLACK) return null
+        mentionNoticedAt[meta.threadUrl] = at
+        realtimeUrls.getOrPut(MentionsSection.id) { mutableSetOf() }.add(meta.threadUrl)
+        // 멘션 알림은 스레드 url · 멘션한 사람 기준 (Realtime 'mentioned' 와 같은 모양).
+        return MeowNotice.Mentioned(item.copy(url = meta.threadUrl, author = meta.commenter, comment = null))
     }
 
     /**
@@ -85,7 +128,9 @@ internal class SectionNoticeTracker {
             }
         }
         if (seenUrls[id]?.contains(item.url) == true) return false
-        return realtimeUrls.getOrPut(id) { mutableSetOf() }.add(item.url)
+        if (!realtimeUrls.getOrPut(id) { mutableSetOf() }.add(item.url)) return false
+        if (notice is MeowNotice.Mentioned) mentionNoticedAt[item.url] = now()
+        return true
     }
 
     private fun diffMyPrs(items: List<SectionItem>): List<MeowNotice> {
@@ -109,3 +154,9 @@ internal class SectionNoticeTracker {
         return notices
     }
 }
+
+/** 멘션 알림 시각과 댓글 작성 시각을 비교할 때 허용하는 시계 차이. */
+private val MENTION_SLACK = 2.minutes
+
+/** 멘션 알림 시각을 기억하는 기간. 멘션 알림 뒤 같은 댓글이 조회에 늦게 나타나는(검색 인덱스 지연) 경우를 넉넉히 덮는다. */
+private val MENTION_MEMORY = 1.days
