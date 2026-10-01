@@ -28,7 +28,16 @@ refactor/#50-... ────┘
 ## 2. dev 브랜치 (`dev/vX.Y.Z`)
 
 - 다음에 배포할 버전 하나당 하나. 저장소의 **기본 브랜치**로 둔다.
-- 새 버전을 시작할 때 `release` 에서 분기하고, 첫 커밋으로 `composeApp/build.gradle.kts` 의 `packageVersion` 을 같은 버전으로 올린다 (release PR 검사에서 확인함).
+- 새 버전을 시작할 때 `release` 에서 분기하고, 첫 PR 로 `composeApp/build.gradle.kts` 의 `packageVersion` 을 같은 버전으로 올린다 (release PR 검사에서 확인함).
+- `dev/v*` 보호 규칙은 브랜치 생성 · 이름 변경도 막는다. 새 dev 브랜치는 저장소 관리자가 규칙을 잠시 끄고 만든다.
+  ```bash
+  RS=$(gh api repos/hyunjine/meow/rulesets --jq '.[] | select(.name=="dev 보호") | .id')
+  gh api -X PUT repos/hyunjine/meow/rulesets/$RS -f enforcement=disabled
+  gh api -X POST repos/hyunjine/meow/git/refs -f ref=refs/heads/dev/vX.Y.Z \
+    -f sha=$(gh api repos/hyunjine/meow/git/ref/heads/release --jq .object.sha)
+  gh api -X PATCH repos/hyunjine/meow -f default_branch=dev/vX.Y.Z
+  gh api -X PUT repos/hyunjine/meow/rulesets/$RS -f enforcement=active
+  ```
 - 버전 규칙 (SemVer)
   - `X` major: 화면 구조 · 데이터가 크게 바뀌어 이전과 호환되지 않을 때
   - `Y` minor: 새 기능
