@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
@@ -11,8 +13,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -30,7 +34,10 @@ import com.aivn.meow.ui.Dashboard
 import com.aivn.meow.ui.DashboardUiState
 import com.aivn.meow.ui.DashboardViewModel
 import com.aivn.meow.ui.MeowNotice
+import com.aivn.meow.ui.nav.AppDrawer
+import com.aivn.meow.ui.nav.AppScreen
 import com.aivn.meow.ui.sections.DashboardSections
+import com.aivn.meow.ui.weekly.WeeklyReportScreen
 
 @Composable
 fun App(
@@ -57,7 +64,10 @@ fun App(
     val state by viewModel.state.collectAsState()
     val favoriteRepos by viewModel.favorites.collectAsState()
     val orgRepos by viewModel.orgRepos.collectAsState()
-    val viewerLogin = (state as? DashboardUiState.Loaded)?.snapshot?.viewerLogin
+    val snapshot = (state as? DashboardUiState.Loaded)?.snapshot
+    val viewerLogin = snapshot?.viewerLogin
+    // 앱은 항상 GitHub 화면으로 시작한다 (선택은 저장하지 않음)
+    var screen by remember { mutableStateOf(AppScreen.GITHUB) }
 
     LaunchedEffect(realtimeService, viewerLogin) {
         val service = realtimeService ?: return@LaunchedEffect
@@ -68,15 +78,29 @@ fun App(
     }
 
     MeowTheme {
-        Dashboard(
-            state = state,
-            onRefresh = { viewModel.refresh() },
-            onOpenPr = { pr: PullRequest -> onOpenUrl(pr.url) },
-            onOpenUrl = onOpenUrl,
-            favoriteRepos = favoriteRepos,
-            orgRepos = orgRepos,
-            onToggleFavorite = viewModel::toggleFavorite,
-        )
+        Row(modifier = Modifier.fillMaxSize()) {
+            AppDrawer(
+                selected = screen,
+                onSelect = { screen = it },
+                viewerLogin = viewerLogin,
+                viewerInitials = snapshot?.viewerInitials,
+                avatarUrl = snapshot?.avatarUrl,
+            )
+            Box(modifier = Modifier.weight(1f).fillMaxHeight().background(MeowColors.Background)) {
+                when (screen) {
+                    AppScreen.GITHUB -> Dashboard(
+                        state = state,
+                        onRefresh = { viewModel.refresh() },
+                        onOpenPr = { pr: PullRequest -> onOpenUrl(pr.url) },
+                        onOpenUrl = onOpenUrl,
+                        favoriteRepos = favoriteRepos,
+                        orgRepos = orgRepos,
+                        onToggleFavorite = viewModel::toggleFavorite,
+                    )
+                    AppScreen.WEEKLY_REPORT -> WeeklyReportScreen()
+                }
+            }
+        }
     }
 }
 
