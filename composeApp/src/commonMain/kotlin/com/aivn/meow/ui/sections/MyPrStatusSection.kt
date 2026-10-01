@@ -22,7 +22,9 @@ object MyPrStatusSection : DashboardSection {
             compareBy<MyPrStatusNode> { it.priority() }.thenByDescending { it.updatedAt },
         )
         return SectionData(
-            items = sorted.map { it.toSectionItem(badges = it.badges(), detail = it.detail()) },
+            items = sorted.map {
+                it.toSectionItem(badges = it.badges(), detail = it.detail()).copy(reviewState = it.reviewDecision)
+            },
             totalCount = result.issueCount,
         )
     }
