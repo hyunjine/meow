@@ -52,6 +52,7 @@ private fun runApp() = application {
                 // 요청마다 토큰을 다시 읽어, 교체된 토큰이 재시작 없이 반영되게 한다. 읽기 실패 시 시작 시 토큰 사용.
                 githubClientFactory = { token -> GithubClient({ readGithubToken() ?: token }, CIO) },
                 onOpenUrl = ::openUrlInBrowser,
+                msEngine = CIO,
                 onNotices = { notices -> notices.toNotifications().forEach(trayState::sendNotification) },
             )
         }

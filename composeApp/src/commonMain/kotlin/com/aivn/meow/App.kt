@@ -28,6 +28,8 @@ import com.aivn.meow.config.AppConfig
 import com.aivn.meow.data.PrRepository
 import com.aivn.meow.github.GithubClient
 import com.aivn.meow.model.PullRequest
+import com.aivn.meow.ms.GraphClient
+import com.aivn.meow.ms.MsAuth
 import com.aivn.meow.realtime.RealtimeService
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.MeowTheme
@@ -39,12 +41,17 @@ import com.aivn.meow.ui.nav.AppDrawer
 import com.aivn.meow.ui.nav.AppScreen
 import com.aivn.meow.ui.sections.DashboardSections
 import com.aivn.meow.ui.weekly.WeeklyReportScreen
+import com.aivn.meow.ui.weekly.WeeklyReportViewModel
+import com.aivn.meow.weekly.WeeklyDraftBuilder
+import com.aivn.meow.weekly.WeeklyReportRepository
+import io.ktor.client.engine.HttpClientEngineFactory
 
 @Composable
 fun App(
     config: AppConfig,
     githubClientFactory: (String) -> GithubClient,
     onOpenUrl: (String) -> Unit,
+    msEngine: HttpClientEngineFactory<*>,
     onNotices: (List<MeowNotice>) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
@@ -53,11 +60,22 @@ fun App(
         val repository = PrRepository(client, DashboardSections)
         DashboardViewModel(repository, config.org, scope)
     }
+    // 주간 보고 상태는 화면 전환에도 유지되도록 App 수준에 둔다.
+    val weeklyViewModel = remember(config.token) {
+        val auth = MsAuth(msEngine)
+        WeeklyReportViewModel(
+            auth = auth,
+            repository = WeeklyReportRepository(GraphClient(auth, msEngine)),
+            draftBuilder = WeeklyDraftBuilder(githubClientFactory(config.token), config.org),
+            scope = scope,
+        )
+    }
     val realtimeService = remember(config.supabase) {
         config.supabase?.let { RealtimeService(it) }
     }
 
     LaunchedEffect(viewModel) { viewModel.start() }
+    LaunchedEffect(weeklyViewModel) { weeklyViewModel.start() }
     LaunchedEffect(viewModel) {
         viewModel.notices.collect { onNotices(it) }
     }
@@ -101,7 +119,7 @@ fun App(
                             orgRepos = orgRepos,
                             onToggleFavorite = viewModel::toggleFavorite,
                         )
-                        AppScreen.WEEKLY_REPORT -> WeeklyReportScreen()
+                        AppScreen.WEEKLY_REPORT -> WeeklyReportScreen(viewModel = weeklyViewModel, onOpenUrl = onOpenUrl)
                     }
                 }
             }
