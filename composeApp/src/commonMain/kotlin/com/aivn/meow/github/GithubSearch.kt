@@ -13,6 +13,7 @@ interface SearchItemFields {
     val typename: String
     val number: Int
     val title: String
+    val bodyText: String
     val url: String
     val updatedAt: String
     val author: Author?
@@ -26,6 +27,7 @@ data class SearchItemNode(
     @SerialName("__typename") override val typename: String,
     override val number: Int,
     override val title: String,
+    override val bodyText: String = "",
     override val url: String,
     override val updatedAt: String,
     override val author: Author? = null,
@@ -47,6 +49,7 @@ const val SEARCH_ITEM_FIELDS = """
     __typename
     number
     title
+    bodyText
     url
     updatedAt
     author { login avatarUrl }

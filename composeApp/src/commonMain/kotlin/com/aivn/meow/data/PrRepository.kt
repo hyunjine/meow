@@ -72,6 +72,7 @@ private fun PullRequestNode.toDomain(): PullRequest {
         ci = ci,
         labels = labels,
         url = url,
+        body = bodyText,
     )
 }
 

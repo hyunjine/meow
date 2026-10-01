@@ -9,6 +9,7 @@ data class MyPrStatusNode(
     @SerialName("__typename") override val typename: String,
     override val number: Int,
     override val title: String,
+    override val bodyText: String = "",
     override val url: String,
     override val updatedAt: String,
     override val author: Author? = null,
