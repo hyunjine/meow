@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aivn.meow.data.DashboardSnapshot
 import com.aivn.meow.data.SectionResult
+import com.aivn.meow.data.colorForRepo
 import com.aivn.meow.model.PullRequest
 import com.aivn.meow.model.SectionItem
 import com.aivn.meow.theme.MeowColors
@@ -61,6 +62,9 @@ fun Dashboard(
     onRefresh: () -> Unit,
     onOpenPr: (PullRequest) -> Unit,
     onOpenUrl: (String) -> Unit,
+    favoriteRepos: Set<String>,
+    orgRepos: List<String>?,
+    onToggleFavorite: (String) -> Unit,
 ) {
     Box(
         modifier = Modifier.fillMaxSize().background(MeowColors.Background),
@@ -68,7 +72,7 @@ fun Dashboard(
         when (state) {
             is DashboardUiState.Loading -> CenteredLoading("PR 목록을 불러오는 중…")
             is DashboardUiState.Error -> CenteredError(state.failure, onRefresh)
-            is DashboardUiState.Loaded -> DashboardContent(state, onRefresh, onOpenPr, onOpenUrl)
+            is DashboardUiState.Loaded -> DashboardContent(state, onRefresh, onOpenPr, onOpenUrl, favoriteRepos, orgRepos, onToggleFavorite)
         }
     }
 }
@@ -79,6 +83,9 @@ private fun DashboardContent(
     onRefresh: () -> Unit,
     onOpenPr: (PullRequest) -> Unit,
     onOpenUrl: (String) -> Unit,
+    favoriteRepos: Set<String>,
+    orgRepos: List<String>?,
+    onToggleFavorite: (String) -> Unit,
 ) {
     // 창 폭에 비례한 좌우 여백 (1440 창 ≈ 양옆 173, 좁은 창에서도 최소 48)
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -92,6 +99,9 @@ private fun DashboardContent(
             onRefresh = onRefresh,
             onOpenPr = onOpenPr,
             onOpenUrl = onOpenUrl,
+            favoriteRepos = favoriteRepos,
+            orgRepos = orgRepos,
+            onToggleFavorite = onToggleFavorite,
         )
     }
 }
@@ -108,6 +118,9 @@ private fun DashboardBody(
     onRefresh: () -> Unit,
     onOpenPr: (PullRequest) -> Unit,
     onOpenUrl: (String) -> Unit,
+    favoriteRepos: Set<String>,
+    orgRepos: List<String>?,
+    onToggleFavorite: (String) -> Unit,
 ) {
     var sortOption by remember { mutableStateOf(PrSortOption.OLDEST) }
     // 0 = 리뷰 대기 PR, 1.. = 보조 섹션. 앱은 항상 리뷰 대기 PR 탭으로 시작한다.
@@ -119,6 +132,7 @@ private fun DashboardBody(
     var expandedUrls by remember { mutableStateOf(emptySet<String>()) }
     // 사이드바에서 고른 레포. null = 전체. 앱은 항상 전체로 시작한다.
     var selectedRepo by remember { mutableStateOf<String?>(null) }
+    var showRepoManager by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
 
     val snapshot = state.snapshot
@@ -138,14 +152,20 @@ private fun DashboardBody(
     var clearedSectionIds by remember(sections) { mutableStateOf(emptySet<String>()) }
     fun itemsOf(result: SectionResult) = if (result.section.id in clearedSectionIds) emptyList() else result.items
 
-    // 사이드바 레포 목록: 모든 탭 항목의 레포를 이름순으로. 개수는 같은 url 을 한 번만 센다.
-    val repoEntries = prs.map { Triple(it.repo, it.repoColor, it.url) } +
-        sections.flatMap { result -> itemsOf(result).map { Triple(it.repo, it.repoColor, it.url) } }
-    val repos = repoEntries.groupBy { it.first }
-        .map { (name, entries) -> RepoInfo(name, entries.first().second, entries.distinctBy { it.third }.size) }
-        .sortedBy { it.name }
-    // 사이드바를 숨겼거나 새로고침으로 사라진 레포면 전체를 보여준다
-    val repoFilter = selectedRepo?.takeIf { repo -> showSidebar && repos.any { it.name == repo } }
+    // 사이드바 레포 목록: 즐겨찾기 레포를 이름순으로 (항목이 없어도 표시). 개수는 같은 url 을 한 번만 센다.
+    val repoEntries = prs.map { it.repo to it.url } +
+        sections.flatMap { result -> itemsOf(result).map { it.repo to it.url } }
+    val repoCounts = repoEntries.groupBy({ it.first }, { it.second }).mapValues { (_, urls) -> urls.toSet().size }
+    val repos = favoriteRepos
+        .sortedBy { it.lowercase() }
+        .map { name -> RepoInfo(name, colorForRepo(name), repoCounts[name] ?: 0) }
+    // 관리 모달: '작업 중' 요약과 전체 레포 (조직 목록을 못 불러왔으면 작업 중 + 즐겨찾기만)
+    val workingSummaries = repoSummaries(prs.map { it.repo }, sections.map { result -> result to itemsOf(result).map { it.repo } })
+    val managerRepos = ((orgRepos ?: emptyList()) + workingSummaries.keys + favoriteRepos)
+        .distinct()
+        .sortedBy { it.lowercase() }
+    // 사이드바를 숨겼거나 즐겨찾기에서 빠진 레포면 전체를 보여준다
+    val repoFilter = selectedRepo?.takeIf { repo -> showSidebar && repo in favoriteRepos }
     val visiblePrs = if (repoFilter == null) prs else prs.filter { it.repo == repoFilter }
     fun visibleItemsOf(result: SectionResult) =
         if (repoFilter == null) itemsOf(result) else itemsOf(result).filter { it.repo == repoFilter }
@@ -208,7 +228,8 @@ private fun DashboardBody(
     LaunchedEffect(currentUrls.size) {
         if (selectedIndex >= 0) selectedIndex = selectedIndex.coerceAtMost(currentUrls.lastIndex)
     }
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    // 시작 시 · 관리 모달을 닫은 뒤 키보드 단축키가 다시 동작하도록 포커스를 가져온다
+    LaunchedEffect(showRepoManager) { if (!showRepoManager) focusRequester.requestFocus() }
 
     val stats = listOf(
         StatItem(
@@ -237,135 +258,147 @@ private fun DashboardBody(
         ),
     )
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .focusRequester(focusRequester)
-            .focusable()
-            .onPreviewKeyEvent { keyEvent ->
-                if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                // ⌘1~⌘9 탭 전환
-                val shortcutTab = TabShortcutKeys.indexOf(keyEvent.key)
-                if (keyEvent.isMetaPressed && shortcutTab in tabKeys.indices) {
-                    selectTab(shortcutTab)
-                    return@onPreviewKeyEvent true
-                }
-                when (keyEvent.key) {
-                    Key.DirectionDown, Key.J -> {
-                        if (currentUrls.isNotEmpty()) selectedIndex = (selectedIndex + 1).coerceIn(0, currentUrls.lastIndex)
-                        true
-                    }
-                    Key.DirectionUp, Key.K -> {
-                        if (currentUrls.isNotEmpty()) selectedIndex = if (selectedIndex < 0) 0 else (selectedIndex - 1).coerceAtLeast(0)
-                        true
-                    }
-                    Key.Enter, Key.NumPadEnter -> {
-                        openSelected()
-                        true
-                    }
-                    Key.Spacebar -> {
-                        currentUrls.getOrNull(selectedIndex)?.let(::toggleExpanded)
-                        true
-                    }
-                    Key.R -> {
-                        if (keyEvent.isMetaPressed) {
-                            onRefresh()
-                            true
-                        } else {
-                            false
-                        }
-                    }
-                    else -> false
-                }
-            }
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
-                .padding(horizontal = sideMargin)
-                .fillMaxWidth()
-                .widthIn(max = BodyMaxWidth)
-                .padding(vertical = 40.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
-            DashboardHeader(
-                lastSyncLabel = formatSyncLabel(snapshot.fetchedAtIso),
-                userInitials = snapshot.viewerInitials,
-                avatarUrl = snapshot.avatarUrl,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            StatCards(stats = stats, modifier = Modifier.fillMaxWidth())
-            state.refreshError?.let { failure ->
-                RefreshErrorBanner(failure = failure, onRetry = onRefresh, modifier = Modifier.fillMaxWidth())
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(24.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                if (showSidebar) {
-                    RepoSidebar(
-                        repos = repos,
-                        totalCount = repoEntries.distinctBy { it.third }.size,
-                        selectedRepo = repoFilter,
-                        onSelect = ::selectRepo,
-                        modifier = Modifier.width(SidebarWidth),
-                    )
-                }
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
-                ) {
-                    DashboardTabBar(
-                        tabs = tabs,
-                        selectedIndex = tabIndex,
-                        onSelect = ::selectTab,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        if (tabIndex == 0) SortChip(sortOption = sortOption, onSortSelect = { sortOption = it })
-                        currentSection?.section?.headerAction?.let { action ->
-                            GlassChip(
-                                text = action.label,
-                                onClick = {
-                                    action.perform()
-                                    clearedSectionIds = clearedSectionIds + currentSection.section.id
-                                },
-                            )
-                        }
-                        GlassChip(
-                            text = "새로고침",
-                            leading = { Icon(Icons.Default.Refresh, null, tint = MeowColors.TextPrimary, modifier = Modifier.size(14.dp)) },
-                            onClick = onRefresh,
-                        )
+                .fillMaxSize()
+                .focusRequester(focusRequester)
+                .focusable()
+                .onPreviewKeyEvent { keyEvent ->
+                    if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    // ⌘1~⌘9 탭 전환
+                    val shortcutTab = TabShortcutKeys.indexOf(keyEvent.key)
+                    if (keyEvent.isMetaPressed && shortcutTab in tabKeys.indices) {
+                        selectTab(shortcutTab)
+                        return@onPreviewKeyEvent true
                     }
-                    if (currentSection == null) {
-                        if (visiblePrs.isEmpty()) {
-                            EmptyStateCard("리뷰 요청이 없습니다 🎉", "여유로운 하루 보내세요", Modifier.fillMaxWidth())
-                        } else {
-                            TwoColumnGrid(visiblePrs, Modifier.fillMaxWidth()) { index, pr, cellModifier ->
-                                PrRow(
-                                    pr = pr,
-                                    isSelected = index == selectedIndex,
-                                    isExpanded = pr.url in expandedUrls,
-                                    onToggleExpand = { selectedIndex = -1; toggleExpanded(pr.url) },
-                                    onOpen = { onOpenPr(pr) },
-                                    modifier = cellModifier,
-                                )
+                    when (keyEvent.key) {
+                        Key.DirectionDown, Key.J -> {
+                            if (currentUrls.isNotEmpty()) selectedIndex = (selectedIndex + 1).coerceIn(0, currentUrls.lastIndex)
+                            true
+                        }
+                        Key.DirectionUp, Key.K -> {
+                            if (currentUrls.isNotEmpty()) selectedIndex = if (selectedIndex < 0) 0 else (selectedIndex - 1).coerceAtLeast(0)
+                            true
+                        }
+                        Key.Enter, Key.NumPadEnter -> {
+                            openSelected()
+                            true
+                        }
+                        Key.Spacebar -> {
+                            currentUrls.getOrNull(selectedIndex)?.let(::toggleExpanded)
+                            true
+                        }
+                        Key.R -> {
+                            if (keyEvent.isMetaPressed) {
+                                onRefresh()
+                                true
+                            } else {
+                                false
                             }
                         }
-                    } else {
-                        SectionTabContent(
-                            result = currentSection,
-                            items = visibleItemsOf(currentSection),
-                            selectedIndex = selectedIndex,
-                            expandedUrls = expandedUrls,
-                            onToggleExpand = { url -> selectedIndex = -1; toggleExpanded(url) },
-                            onOpenUrl = onOpenUrl,
+                        else -> false
+                    }
+                }
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = sideMargin)
+                    .fillMaxWidth()
+                    .widthIn(max = BodyMaxWidth)
+                    .padding(vertical = 40.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                DashboardHeader(
+                    lastSyncLabel = formatSyncLabel(snapshot.fetchedAtIso),
+                    userInitials = snapshot.viewerInitials,
+                    avatarUrl = snapshot.avatarUrl,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                StatCards(stats = stats, modifier = Modifier.fillMaxWidth())
+                state.refreshError?.let { failure ->
+                    RefreshErrorBanner(failure = failure, onRetry = onRefresh, modifier = Modifier.fillMaxWidth())
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    if (showSidebar) {
+                        RepoSidebar(
+                            repos = repos,
+                            totalCount = repoEntries.distinctBy { it.second }.size,
+                            selectedRepo = repoFilter,
+                            onSelect = ::selectRepo,
+                            onManage = { showRepoManager = true },
+                            modifier = Modifier.width(SidebarWidth),
                         )
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(20.dp),
+                    ) {
+                        DashboardTabBar(
+                            tabs = tabs,
+                            selectedIndex = tabIndex,
+                            onSelect = ::selectTab,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            if (tabIndex == 0) SortChip(sortOption = sortOption, onSortSelect = { sortOption = it })
+                            currentSection?.section?.headerAction?.let { action ->
+                                GlassChip(
+                                    text = action.label,
+                                    onClick = {
+                                        action.perform()
+                                        clearedSectionIds = clearedSectionIds + currentSection.section.id
+                                    },
+                                )
+                            }
+                            GlassChip(
+                                text = "새로고침",
+                                leading = { Icon(Icons.Default.Refresh, null, tint = MeowColors.TextPrimary, modifier = Modifier.size(14.dp)) },
+                                onClick = onRefresh,
+                            )
+                        }
+                        if (currentSection == null) {
+                            if (visiblePrs.isEmpty()) {
+                                EmptyStateCard("리뷰 요청이 없습니다 🎉", "여유로운 하루 보내세요", Modifier.fillMaxWidth())
+                            } else {
+                                TwoColumnGrid(visiblePrs, Modifier.fillMaxWidth()) { index, pr, cellModifier ->
+                                    PrRow(
+                                        pr = pr,
+                                        isSelected = index == selectedIndex,
+                                        isExpanded = pr.url in expandedUrls,
+                                        onToggleExpand = { selectedIndex = -1; toggleExpanded(pr.url) },
+                                        onOpen = { onOpenPr(pr) },
+                                        modifier = cellModifier,
+                                    )
+                                }
+                            }
+                        } else {
+                            SectionTabContent(
+                                result = currentSection,
+                                items = visibleItemsOf(currentSection),
+                                selectedIndex = selectedIndex,
+                                expandedUrls = expandedUrls,
+                                onToggleExpand = { url -> selectedIndex = -1; toggleExpanded(url) },
+                                onOpenUrl = onOpenUrl,
+                            )
+                        }
                     }
                 }
             }
+        }
+        if (showRepoManager) {
+            RepoManagerDialog(
+                allRepos = managerRepos,
+                summaries = workingSummaries,
+                favorites = favoriteRepos,
+                onToggleFavorite = onToggleFavorite,
+                onDismiss = { showRepoManager = false },
+            )
         }
     }
 }

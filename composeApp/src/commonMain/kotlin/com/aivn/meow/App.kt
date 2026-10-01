@@ -55,6 +55,8 @@ fun App(
     }
 
     val state by viewModel.state.collectAsState()
+    val favoriteRepos by viewModel.favorites.collectAsState()
+    val orgRepos by viewModel.orgRepos.collectAsState()
     val viewerLogin = (state as? DashboardUiState.Loaded)?.snapshot?.viewerLogin
 
     LaunchedEffect(realtimeService, viewerLogin) {
@@ -71,6 +73,9 @@ fun App(
             onRefresh = { viewModel.refresh() },
             onOpenPr = { pr: PullRequest -> onOpenUrl(pr.url) },
             onOpenUrl = onOpenUrl,
+            favoriteRepos = favoriteRepos,
+            orgRepos = orgRepos,
+            onToggleFavorite = viewModel::toggleFavorite,
         )
     }
 }

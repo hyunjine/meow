@@ -3,6 +3,7 @@ package com.aivn.meow.data
 import androidx.compose.ui.graphics.Color
 import com.aivn.meow.github.GithubClient
 import com.aivn.meow.github.PullRequestNode
+import com.aivn.meow.github.fetchOrgRepoNames
 import com.aivn.meow.model.CiStatus
 import com.aivn.meow.model.Label
 import com.aivn.meow.model.PullRequest
@@ -45,7 +46,14 @@ class PrRepository(
             sections = sectionJobs.awaitAll(),
         )
     }
+
+    /** 즐겨찾기 관리 모달의 '전체' 목록. 대시보드 폴링과 별개로 시작 · 수동 새로고침 때만 부른다. */
+    suspend fun loadOrgRepos(org: String): List<String> = client.fetchOrgRepoNames(org)
 }
+
+/** '작업 중' 레포: 어느 탭에든 항목이 하나라도 있는 레포. */
+fun DashboardSnapshot.workingRepos(): Set<String> =
+    (pullRequests.map { it.repo } + sections.flatMap { result -> result.items.map { it.repo } }).toSet()
 
 private fun PullRequestNode.toDomain(): PullRequest {
     val repoShort = repository.nameWithOwner.substringAfter('/', repository.nameWithOwner)
