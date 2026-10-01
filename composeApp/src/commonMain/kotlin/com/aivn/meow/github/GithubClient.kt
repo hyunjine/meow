@@ -111,6 +111,7 @@ class GithubClient(
               ... on PullRequest {
                 number
                 title
+                bodyText
                 url
                 isDraft
                 createdAt

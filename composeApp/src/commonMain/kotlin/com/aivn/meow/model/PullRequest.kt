@@ -20,4 +20,6 @@ data class PullRequest(
     val ci: CiStatus,
     val labels: List<Label>,
     val url: String,
+    /** PR 본문 (plain text). 실시간 이벤트로 들어온 PR 은 null. */
+    val body: String? = null,
 )

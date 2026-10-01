@@ -16,11 +16,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +40,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -128,20 +135,29 @@ internal fun GlassChip(
     }
 }
 
-/** 2열 그리드용 리뷰 대기 PR 카드. 좁은 폭에서도 제목 · 메타 · 칩이 줄바꿈된다. */
+/**
+ * 2열 그리드용 리뷰 대기 PR 카드. 좁은 폭에서도 제목 · 메타 · 칩이 줄바꿈된다.
+ * 카드 클릭은 본문 펼치기/접기, GitHub 열기는 오른쪽 위 버튼.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun PrRow(pr: PullRequest, isSelected: Boolean, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+internal fun PrRow(
+    pr: PullRequest,
+    isSelected: Boolean,
+    isExpanded: Boolean,
+    onToggleExpand: () -> Unit,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier = modifier
             .glassSurface(
                 corner = 20.dp,
                 fill = MeowColors.GlassSurface,
-                // 키보드로 선택된 카드는 브랜드 컬러 테두리로 포커스를 표시
-                borderColor = if (isSelected) MeowColors.Brand else MeowColors.GlassBorder,
+                borderColor = cardBorderColor(isSelected, isExpanded),
                 borderWidth = if (isSelected) 2.dp else 1.dp,
             )
-            .clickable(onClick = onOpen)
+            .clickable(onClick = onToggleExpand)
             .padding(horizontal = 20.dp, vertical = 18.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -175,6 +191,8 @@ internal fun PrRow(pr: PullRequest, isSelected: Boolean, onOpen: () -> Unit, mod
 
             Text(text = titleWithNumber(pr.title, pr.number))
 
+            CardBody(body = pr.body, isExpanded = isExpanded)
+
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -183,6 +201,66 @@ internal fun PrRow(pr: PullRequest, isSelected: Boolean, onOpen: () -> Unit, mod
                 CiChip(pr.ci)
                 pr.labels.forEach { label -> PillChip(label.text, label.color) }
             }
+        }
+
+        OpenInGithubButton(onClick = onOpen)
+    }
+}
+
+/** 키보드 선택 > 펼침 > 기본 순으로 카드 테두리 색을 고른다. */
+internal fun cardBorderColor(isSelected: Boolean, isExpanded: Boolean): Color = when {
+    isSelected -> MeowColors.Brand
+    isExpanded -> MeowColors.Brand.copy(alpha = 0.35f)
+    else -> MeowColors.GlassBorder
+}
+
+/** 카드 본문. 접힌 상태는 3줄 미리보기, 펼치면 전체. 비었거나 공백뿐이면 영역을 그리지 않는다. */
+@Composable
+internal fun CardBody(body: String?, isExpanded: Boolean) {
+    val text = remember(body) { body?.let(::tidyBody).orEmpty() }
+    if (text.isEmpty()) return
+    Text(
+        text = text,
+        color = MeowColors.TextSecondary,
+        fontSize = 13.sp,
+        lineHeight = 20.sp,
+        maxLines = if (isExpanded) Int.MAX_VALUE else 3,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+/** 줄 끝 공백을 지우고 연속된 빈 줄을 하나로 줄인다. */
+private fun tidyBody(raw: String): String =
+    raw.lines()
+        .map { it.trimEnd() }
+        .joinToString("\n")
+        .replace(Regex("\n{3,}"), "\n\n")
+        .trim()
+
+/** 카드 오른쪽 위의 'GitHub에서 열기' 원형 아이콘 버튼. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun OpenInGithubButton(onClick: () -> Unit) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        tooltip = { PlainTooltip { Text("GitHub에서 열기") } },
+        state = rememberTooltipState(),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .clip(CircleShape)
+                .background(MeowColors.Surface)
+                .border(1.dp, MeowColors.GlassBorder, CircleShape)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.OpenInNew,
+                contentDescription = "GitHub에서 열기",
+                tint = MeowColors.TextSecondary,
+                modifier = Modifier.size(16.dp),
+            )
         }
     }
 }

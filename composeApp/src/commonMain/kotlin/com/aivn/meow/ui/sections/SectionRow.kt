@@ -20,24 +20,34 @@ import com.aivn.meow.model.SectionItem
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
 import com.aivn.meow.ui.AuthorAvatar
+import com.aivn.meow.ui.CardBody
 import com.aivn.meow.ui.DotSeparator
+import com.aivn.meow.ui.OpenInGithubButton
 import com.aivn.meow.ui.PillChip
+import com.aivn.meow.ui.cardBorderColor
 import com.aivn.meow.ui.titleWithNumber
 import com.aivn.meow.util.relativeTime
 
-/** 보조 섹션 탭의 2열 그리드 카드. [PrRow][com.aivn.meow.ui.PrRow] 와 같은 스타일. */
+/** 보조 섹션 탭의 2열 그리드 카드. [PrRow][com.aivn.meow.ui.PrRow] 와 같은 스타일 · 동작(클릭 = 펼치기). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun SectionRow(item: SectionItem, isSelected: Boolean, onOpen: () -> Unit, modifier: Modifier = Modifier) {
+internal fun SectionRow(
+    item: SectionItem,
+    isSelected: Boolean,
+    isExpanded: Boolean,
+    onToggleExpand: () -> Unit,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier = modifier
             .glassSurface(
                 corner = 20.dp,
                 fill = MeowColors.GlassSurface,
-                borderColor = if (isSelected) MeowColors.Brand else MeowColors.GlassBorder,
+                borderColor = cardBorderColor(isSelected, isExpanded),
                 borderWidth = if (isSelected) 2.dp else 1.dp,
             )
-            .clickable(onClick = onOpen)
+            .clickable(onClick = onToggleExpand)
             .padding(horizontal = 20.dp, vertical = 18.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -85,6 +95,8 @@ internal fun SectionRow(item: SectionItem, isSelected: Boolean, onOpen: () -> Un
                 )
             }
 
+            CardBody(body = item.body, isExpanded = isExpanded)
+
             if (item.badges.isNotEmpty() || item.labels.isNotEmpty()) {
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -95,5 +107,7 @@ internal fun SectionRow(item: SectionItem, isSelected: Boolean, onOpen: () -> Un
                 }
             }
         }
+
+        OpenInGithubButton(onClick = onOpen)
     }
 }

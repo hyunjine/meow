@@ -32,7 +32,6 @@ object MyIssueCommentsSection : DashboardSection {
 
     private val DEFAULT_WINDOW = 7.days
     private const val MAX_ITEMS = 30
-    private const val PREVIEW_LENGTH = 80
 
     override suspend fun load(client: GithubClient, org: String): SectionData {
         val sinceDate = lastSeen().toString().substringBefore('T')
@@ -52,7 +51,8 @@ object MyIssueCommentsSection : DashboardSection {
                     .map { comment ->
                         issue.toSectionItem(
                             updatedAtIso = comment.createdAt,
-                            detail = "@${comment.author?.login ?: "ghost"}: ${comment.bodyText.preview()}",
+                            detail = "@${comment.author?.login ?: "ghost"} 님의 댓글",
+                            body = comment.bodyText,
                         ).copy(url = comment.url)
                     }
             }
@@ -67,9 +67,4 @@ object MyIssueCommentsSection : DashboardSection {
 
     private fun IssueCommentNode.createdAtInstant(): Instant? =
         runCatching { Instant.parse(createdAt) }.getOrNull()
-
-    private fun String.preview(): String {
-        val oneLine = replace(Regex("\\s+"), " ").trim()
-        return if (oneLine.length <= PREVIEW_LENGTH) oneLine else oneLine.take(PREVIEW_LENGTH).trimEnd() + "…"
-    }
 }
