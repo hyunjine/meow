@@ -34,6 +34,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
@@ -203,7 +205,7 @@ internal fun PrRow(
             }
         }
 
-        OpenInGithubButton(onClick = onOpen)
+        CardActions(onOpen = onOpen, hasBody = !pr.body.isNullOrBlank(), isExpanded = isExpanded)
     }
 }
 
@@ -234,6 +236,25 @@ private fun tidyBody(raw: String): String =
         .joinToString("\n")
         .replace(Regex("\n{3,}"), "\n\n")
         .trim()
+
+/** 카드 오른쪽 위 열 — 'GitHub에서 열기' 버튼, 본문이 있으면 그 아래 펼치기 표시(⌄ / ⌃). */
+@Composable
+internal fun CardActions(onOpen: () -> Unit, hasBody: Boolean, isExpanded: Boolean) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        OpenInGithubButton(onClick = onOpen)
+        if (hasBody) {
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = if (isExpanded) "본문 접기" else "본문 펼치기",
+                tint = MeowColors.TextTertiary,
+                modifier = Modifier.size(20.dp).rotate(if (isExpanded) 180f else 0f),
+            )
+        }
+    }
+}
 
 /** 카드 오른쪽 위의 'GitHub에서 열기' 원형 아이콘 버튼. */
 @OptIn(ExperimentalMaterial3Api::class)
