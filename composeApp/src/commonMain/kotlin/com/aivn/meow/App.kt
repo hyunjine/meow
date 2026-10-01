@@ -62,8 +62,8 @@ fun App(
     LaunchedEffect(realtimeService, viewerLogin) {
         val service = realtimeService ?: return@LaunchedEffect
         val login = viewerLogin ?: return@LaunchedEffect
-        service.subscribeReviewRequests(login).collect { pr ->
-            viewModel.onRealtimeEvent(pr)
+        service.subscribeNotices(login).collect { notice ->
+            viewModel.onRealtimeNotice(notice)
         }
     }
 

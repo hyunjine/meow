@@ -7,7 +7,6 @@ import com.aivn.meow.data.PrRepository
 import com.aivn.meow.data.keepPreviousOnError
 import com.aivn.meow.data.workingRepos
 import com.aivn.meow.github.GithubApiException
-import com.aivn.meow.model.PullRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -131,12 +130,19 @@ class DashboardViewModel(
         }
     }
 
-    /** Realtime push 로 도착한 신규 PR 하나를 내부 seen set 에 반영 + 알림 emit. */
-    fun onRealtimeEvent(pr: PullRequest) {
-        val alreadySeen = seenInitialised && pr.url in seenIds
-        if (alreadySeen) return
-        seenIds = seenIds + pr.url
-        scope.launch { _notices.emit(listOf(MeowNotice.ReviewRequested(pr))) }
+    /**
+     * Realtime push 로 도착한 알림 하나를 조회 기준값(seen set)에 반영 + 알림 emit.
+     * 같은 url · 종류를 조회가 이미 알렸으면 생략하고, 먼저 알렸으면 다음 조회 diff 에서 생략된다.
+     */
+    fun onRealtimeNotice(notice: MeowNotice) {
+        if (notice is MeowNotice.ReviewRequested) {
+            val pr = notice.pr
+            if (seenInitialised && pr.url in seenIds) return
+            seenIds = seenIds + pr.url
+        } else if (!sectionTracker.acceptRealtime(notice)) {
+            return
+        }
+        scope.launch { _notices.emit(listOf(notice)) }
     }
 
     private suspend fun fetchOnce(auto: Boolean) {

@@ -15,7 +15,11 @@
 #     [--owner <github-owner, 기본: Team-AIVN>] \
 #     [--repos "repo1,repo2,..."] \
 #     [--generate-secret] \
-#     [--skip-deploy] [--skip-webhooks] [--skip-config]
+#     [--skip-deploy] [--skip-webhooks] [--skip-config] \
+#     [--update-events-only]
+#
+# 이미 같은 URL 의 웹훅이 있으면 새로 만들지 않고, 구독 이벤트가 WEBHOOK_EVENTS 와 다를 때
+# PATCH 로 events 만 갱신합니다 (시크릿 · URL 등 나머지 설정은 그대로).
 #
 # 값은 인자 대신 환경변수로도 줄 수 있습니다:
 #   PROJECT_REF, SUPABASE_ANON_KEY, GITHUB_WEBHOOK_SECRET, GH_OWNER, GH_REPOS
@@ -32,6 +36,14 @@ DEFAULT_REPOS=(
   mms-kmp-ios
 )
 
+# 웹훅이 구독할 GitHub 이벤트. gh-webhook Edge Function 이 처리하는 이벤트와 맞춘다.
+WEBHOOK_EVENTS=(
+  pull_request
+  pull_request_review
+  issue_comment
+  issues
+)
+
 usage() {
   cat <<'EOF'
 사용법: supabase/scripts/setup.sh [옵션]
@@ -46,6 +58,8 @@ usage() {
   --skip-deploy             4단계(Edge Function 배포) 건너뛰기
   --skip-webhooks           5단계(저장소 웹훅 등록) 건너뛰기
   --skip-config             6단계(데스크톱 앱 설정 파일) 건너뛰기
+  --update-events-only      5단계에서 새 웹훅은 만들지 않고, 이미 등록된 웹훅의 events 만 갱신
+                            (시크릿 불필요. 보통 --skip-deploy --skip-config 와 함께 사용)
   -h, --help                이 도움말 출력
 
 각 단계는 실행 전에 무엇을 할지 출력하고 y/N 확인을 받습니다.
@@ -61,6 +75,7 @@ GENERATE_SECRET=0
 SKIP_DEPLOY=0
 SKIP_WEBHOOKS=0
 SKIP_CONFIG=0
+UPDATE_EVENTS_ONLY=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -73,6 +88,7 @@ while [[ $# -gt 0 ]]; do
     --skip-deploy) SKIP_DEPLOY=1; shift ;;
     --skip-webhooks) SKIP_WEBHOOKS=1; shift ;;
     --skip-config) SKIP_CONFIG=1; shift ;;
+    --update-events-only) UPDATE_EVENTS_ONLY=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *)
       echo "알 수 없는 옵션: $1" >&2
@@ -113,7 +129,12 @@ if [[ "$SKIP_DEPLOY" -eq 0 || "$SKIP_WEBHOOKS" -eq 0 ]] && [[ -z "$PROJECT_REF" 
   echo "오류: --project-ref (또는 PROJECT_REF) 가 필요합니다." >&2
   exit 1
 fi
-if [[ "$SKIP_DEPLOY" -eq 0 || "$SKIP_WEBHOOKS" -eq 0 ]] && [[ -z "$WEBHOOK_SECRET" ]]; then
+# events 갱신만 할 때는 기존 웹훅의 시크릿을 건드리지 않으므로 시크릿이 필요 없습니다.
+NEEDS_SECRET_FOR_WEBHOOKS=0
+if [[ "$SKIP_WEBHOOKS" -eq 0 && "$UPDATE_EVENTS_ONLY" -eq 0 ]]; then
+  NEEDS_SECRET_FOR_WEBHOOKS=1
+fi
+if [[ "$SKIP_DEPLOY" -eq 0 || "$NEEDS_SECRET_FOR_WEBHOOKS" -eq 1 ]] && [[ -z "$WEBHOOK_SECRET" ]]; then
   echo "오류: --webhook-secret (또는 GITHUB_WEBHOOK_SECRET, --generate-secret) 이 필요합니다." >&2
   exit 1
 fi
@@ -143,27 +164,58 @@ step_deploy() {
   fi
 }
 
+# 기존 웹훅의 events 를 WEBHOOK_EVENTS 로 갱신합니다. 이미 같으면 건너뜁니다.
+update_hook_events() {
+  local repo="$1" id="$2" current wanted
+  current="$(gh api "repos/$OWNER/$repo/hooks/$id" --jq '.events | sort | join(",")')"
+  wanted="$(printf '%s\n' "${WEBHOOK_EVENTS[@]}" | sort | paste -sd, -)"
+  if [[ "$current" == "$wanted" ]]; then
+    echo "이미 같은 URL 의 웹훅이 최신 events 로 등록되어 있습니다 (id: $id). 건너뜀"
+    return
+  fi
+  echo "이미 같은 URL 의 웹훅이 있습니다 (id: $id)."
+  echo "  현재 events: ${current:-없음}"
+  echo "  갱신 events: $wanted"
+  if confirm "$OWNER/$repo 웹훅의 events 를 갱신할까요?"; then
+    local args=() event
+    for event in "${WEBHOOK_EVENTS[@]}"; do args+=(-f "events[]=$event"); done
+    gh api "repos/$OWNER/$repo/hooks/$id" -X PATCH "${args[@]}" >/dev/null
+    echo "갱신 완료"
+  else
+    echo "건너뜀"
+  fi
+}
+
 step_webhooks() {
   need_cmd gh
   echo
   echo "=== 5단계: 저장소 웹훅 등록 ==="
   echo "대상 저장소 (owner: $OWNER): ${REPOS[*]}"
   echo "Payload URL: $FUNCTION_URL"
-  local repo existing
+  echo "Events: ${WEBHOOK_EVENTS[*]}"
+  local repo existing id event
+  local event_args=()
+  for event in "${WEBHOOK_EVENTS[@]}"; do event_args+=(-f "events[]=$event"); done
   for repo in "${REPOS[@]}"; do
     echo "--- $OWNER/$repo ---"
     existing="$(gh api "repos/$OWNER/$repo/hooks" --jq \
       ".[] | select(.config.url == \"$FUNCTION_URL\") | .id" 2>/dev/null || true)"
     if [[ -n "$existing" ]]; then
-      echo "이미 같은 URL 의 웹훅이 등록되어 있습니다 (id: $existing). 건너뜀"
+      for id in $existing; do
+        update_hook_events "$repo" "$id"
+      done
       continue
     fi
-    if confirm "$OWNER/$repo 에 웹훅을 등록할까요? (events: pull_request)"; then
+    if [[ "$UPDATE_EVENTS_ONLY" -eq 1 ]]; then
+      echo "등록된 웹훅이 없습니다 (--update-events-only). 건너뜀"
+      continue
+    fi
+    if confirm "$OWNER/$repo 에 웹훅을 등록할까요? (events: ${WEBHOOK_EVENTS[*]})"; then
       gh api "repos/$OWNER/$repo/hooks" \
         -X POST \
         -f name=web \
         -F active=true \
-        -f 'events[]=pull_request' \
+        "${event_args[@]}" \
         -f config[url]="$FUNCTION_URL" \
         -f config[content_type]=json \
         -f config[secret]="$WEBHOOK_SECRET" \

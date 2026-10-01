@@ -1,14 +1,26 @@
 # Supabase 셋업 — Meow 실시간 알림
 
-Meow 데스크톱 앱이 GitHub PR review-requested 이벤트를 실시간으로 받는 파이프라인.
+Meow 데스크톱 앱이 GitHub 이벤트를 실시간으로 받아 macOS 알림으로 띄우는 파이프라인.
 
 ```
 GitHub Webhook  →  Supabase Edge Function (gh-webhook)
                           ↓ INSERT
-                    Postgres · pr_events
+          Postgres · pr_events (리뷰 요청) / notify_events (그 밖의 알림)
                           ↓ Realtime (WebSocket)
                     Meow.app → macOS 알림
 ```
+
+| GitHub 이벤트 | 조건 | 저장 | 알림 받는 사람 |
+| --- | --- | --- | --- |
+| `pull_request` | `review_requested` | `pr_events` | 리뷰 요청받은 사람 |
+| `pull_request` | `opened` / `edited` 본문의 `@멘션` | `notify_events` · `mentioned` | 멘션된 사람 (edited 는 새로 추가된 멘션만) |
+| `issues` | `assigned` | `notify_events` · `assigned` | 할당된 사람 |
+| `issues` | `opened` / `edited` 본문의 `@멘션` | `notify_events` · `mentioned` | 멘션된 사람 (edited 는 새로 추가된 멘션만) |
+| `issue_comment` | `created` · 이슈(PR 제외) 작성자 ≠ 댓글 작성자 | `notify_events` · `new_comment` | 이슈 작성자 |
+| `issue_comment` | `created` 댓글의 `@멘션` | `notify_events` · `mentioned` | 멘션된 사람 (작성자 본인 · 새 댓글 알림을 받은 이슈 작성자 제외) |
+| `pull_request_review` | `submitted` · `approved` / `changes_requested` | `notify_events` · `pr_review` | PR 작성자 |
+
+`notify_events.target_login` 은 소문자로 저장되고, 같은 delivery 의 재전송은 `(delivery_id, kind, target_login)` unique 로 무시됩니다.
 
 ## 1. 사전 준비
 
@@ -40,7 +52,7 @@ supabase db reset
 supabase db push
 ```
 
-`migrations/20260916000000_pr_events.sql` 이 자동으로 실행됩니다.
+`migrations/` 의 SQL(`pr_events` · 라벨 컬럼 · `notify_events`)이 순서대로 실행됩니다.
 
 ## 4. Edge Function 배포
 
@@ -64,7 +76,7 @@ supabase functions deploy gh-webhook --no-verify-jwt
 | Content type | `application/json` |
 | Secret | `$GH_SECRET` (위에서 생성한 값) |
 | SSL verification | Enable |
-| Which events | Let me select individual events → **Pull requests** 만 체크 |
+| Which events | Let me select individual events → **Pull requests**, **Pull request reviews**, **Issue comments**, **Issues** 체크 |
 | Active | ✅ |
 
 저장 직후 GitHub 이 "ping" 을 쏘고, Function 이 `pong` 을 리턴하면 등록 성공.
@@ -93,7 +105,8 @@ export MEOW_SUPABASE_ANON_KEY=<anon key>
 
 1~3단계(프로젝트 생성, link, `db push`)를 마쳤다면 `supabase/scripts/setup.sh` 로
 4~6단계(Edge Function 배포, 6개 저장소 웹훅 등록, 앱 설정 파일 작성)를 한 번에 진행할 수 있습니다.
-단계별로 무엇을 할지 출력한 뒤 y/N 확인을 받고, 이미 같은 URL 의 웹훅이 등록된 저장소는 건너뜁니다.
+단계별로 무엇을 할지 출력한 뒤 y/N 확인을 받습니다. 이미 같은 URL 의 웹훅이 등록된 저장소는 새로 만들지 않고,
+구독 이벤트가 `pull_request, pull_request_review, issue_comment, issues` 와 다르면 PATCH 로 events 만 갱신합니다.
 
 ```bash
 supabase/scripts/setup.sh \
@@ -112,6 +125,16 @@ supabase/scripts/setup.sh \
 | `--owner` | 웹훅을 등록할 GitHub owner (기본: `Team-AIVN`) |
 | `--repos` | 콤마로 구분한 대상 저장소 목록 (기본: 위 6개) |
 | `--skip-deploy` / `--skip-webhooks` / `--skip-config` | 해당 단계 건너뛰기 |
+| `--update-events-only` | 새 웹훅은 만들지 않고 기존 웹훅의 events 만 갱신 (시크릿 불필요) |
+
+이미 `pull_request` 만으로 등록해 둔 웹훅을 새 이벤트로 넓히려면:
+
+```bash
+supabase/scripts/setup.sh \
+  --project-ref <프로젝트 ref> \
+  --skip-deploy --skip-config \
+  --update-events-only
+```
 
 `--help` 로 전체 옵션을 확인할 수 있습니다. 이 스크립트는 `supabase`, `gh` CLI 로그인이 되어 있어야
 동작하며, 시크릿/anon key 를 파일에 저장하지 않고 그 실행 범위 안에서만 사용합니다.
@@ -121,6 +144,8 @@ supabase/scripts/setup.sh \
 1. 다른 계정으로 위 6개 저장소 중 하나에 PR 생성 → hyunjine 에게 리뷰 요청
 2. Supabase Dashboard → Table Editor → `pr_events` 에 새 행 뜨는지 확인
 3. macOS 알림 배너 팝업 (5초 안팎)
+4. 다른 계정으로 내 이슈에 댓글 · `@hyunjine` 멘션 · 이슈 할당 · 내 PR 승인을 해 보고 `notify_events` 에 행이 생기고 알림이 뜨는지 확인.
+   다음 60초 조회에서 같은 항목 알림이 한 번 더 뜨지 않아야 한다.
 
 ## 로그 확인
 
@@ -134,10 +159,10 @@ supabase functions logs gh-webhook --tail
 
 - Team-AIVN 조직 Settings → Webhooks → Add webhook
 - Payload URL / Secret / Content type 는 위와 동일
-- Events: `Pull requests`
+- Events: `Pull requests`, `Pull request reviews`, `Issue comments`, `Issues`
 
 ## 롤백
 
 - Edge Function 삭제: `supabase functions delete gh-webhook`
 - 웹훅 삭제: 각 저장소 Settings → Webhooks → Delete
-- 테이블 삭제: `drop table public.pr_events cascade;`
+- 테이블 삭제: `drop table public.pr_events cascade;`, `drop table public.notify_events cascade;`
