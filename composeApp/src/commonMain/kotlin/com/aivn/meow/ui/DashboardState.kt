@@ -73,14 +73,16 @@ class DashboardViewModel(
     private val _state = MutableStateFlow<DashboardUiState>(DashboardUiState.Loading)
     val state: StateFlow<DashboardUiState> = _state.asStateFlow()
 
-    private val _newRequests = MutableSharedFlow<List<PullRequest>>(extraBufferCapacity = 8)
-    val newRequests: SharedFlow<List<PullRequest>> = _newRequests.asSharedFlow()
+    /** 한 번의 조회(또는 Realtime 이벤트)에서 생긴 알림 묶음. */
+    private val _notices = MutableSharedFlow<List<MeowNotice>>(extraBufferCapacity = 8)
+    val notices: SharedFlow<List<MeowNotice>> = _notices.asSharedFlow()
 
     private var pollJob: Job? = null
     private var manualJob: Job? = null
 
     private var seenIds: Set<String> = emptySet()
     private var seenInitialised: Boolean = false
+    private val sectionTracker = SectionNoticeTracker()
 
     fun start() {
         if (pollJob?.isActive == true) return
@@ -103,7 +105,7 @@ class DashboardViewModel(
         val alreadySeen = seenInitialised && pr.url in seenIds
         if (alreadySeen) return
         seenIds = seenIds + pr.url
-        scope.launch { _newRequests.emit(listOf(pr)) }
+        scope.launch { _notices.emit(listOf(MeowNotice.ReviewRequested(pr))) }
     }
 
     private suspend fun fetchOnce(auto: Boolean) {
@@ -133,14 +135,19 @@ class DashboardViewModel(
     }
 
     private suspend fun emitDiff(snapshot: DashboardSnapshot) {
+        val notices = reviewRequestNotices(snapshot) + sectionTracker.diff(snapshot.sections)
+        if (notices.isNotEmpty()) _notices.emit(notices)
+    }
+
+    private fun reviewRequestNotices(snapshot: DashboardSnapshot): List<MeowNotice> {
         val currentIds = snapshot.pullRequests.map { it.url }.toSet()
         if (!seenInitialised) {
             seenIds = currentIds
             seenInitialised = true
-            return
+            return emptyList()
         }
         val fresh = snapshot.pullRequests.filter { it.url !in seenIds }
         seenIds = currentIds
-        if (fresh.isNotEmpty()) _newRequests.emit(fresh)
+        return fresh.map { MeowNotice.ReviewRequested(it) }
     }
 }
