@@ -214,18 +214,16 @@ internal fun cardBorderColor(isSelected: Boolean, isExpanded: Boolean): Color = 
     else -> MeowColors.GlassBorder
 }
 
-/** 카드 본문. 접힌 상태는 3줄 미리보기, 펼치면 전체. 비었거나 공백뿐이면 영역을 그리지 않는다. */
+/** 카드 본문. 펼쳤을 때만 전체를 보여주고, 접혀 있거나 비었으면 영역을 그리지 않는다. */
 @Composable
 internal fun CardBody(body: String?, isExpanded: Boolean) {
     val text = remember(body) { body?.let(::tidyBody).orEmpty() }
-    if (text.isEmpty()) return
+    if (!isExpanded || text.isEmpty()) return
     Text(
         text = text,
         color = MeowColors.TextSecondary,
         fontSize = 13.sp,
         lineHeight = 20.sp,
-        maxLines = if (isExpanded) Int.MAX_VALUE else 3,
-        overflow = TextOverflow.Ellipsis,
     )
 }
 

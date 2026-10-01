@@ -21,6 +21,6 @@ data class SectionItem(
     val badges: List<Label> = emptyList(),
     /** 제목 아래 한 줄 보조 문구 (예: 댓글 요약). */
     val detail: String? = null,
-    /** 카드에 3줄 미리보기 · 펼치기로 표시하는 본문 (plain text). 새 댓글 섹션은 댓글 전문. */
+    /** 카드를 펼쳤을 때 표시하는 본문 (plain text). 새 댓글 섹션은 댓글 전문. */
     val body: String? = null,
 )
