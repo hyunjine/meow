@@ -27,6 +27,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,7 +43,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aivn.meow.data.DashboardSnapshot
@@ -51,6 +52,10 @@ import com.aivn.meow.model.PullRequest
 import com.aivn.meow.model.SectionItem
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
+import com.aivn.meow.ui.common.PageHeader
+import com.aivn.meow.ui.common.PageHorizontalPadding
+import com.aivn.meow.ui.common.PageMaxWidth
+import com.aivn.meow.ui.common.PageVerticalPadding
 import com.aivn.meow.ui.sections.SectionRow
 import com.aivn.meow.util.formatKst
 import com.aivn.meow.util.formatSyncLabel
@@ -87,13 +92,10 @@ private fun DashboardContent(
     orgRepos: List<String>?,
     onToggleFavorite: (String) -> Unit,
 ) {
-    // 창 폭에 비례한 좌우 여백 (1440 창 ≈ 양옆 173, 좁은 창에서도 최소 48)
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val sideMargin = maxOf(48.dp, maxWidth * 0.12f)
-        val bodyWidth = minOf(maxWidth - sideMargin * 2, BodyMaxWidth)
+        val bodyWidth = minOf(maxWidth - PageHorizontalPadding * 2, PageMaxWidth)
         DashboardBody(
             state = state,
-            sideMargin = sideMargin,
             // 본문이 좁으면 사이드바를 숨기고 메인만 보여준다
             showSidebar = bodyWidth >= SidebarMinBodyWidth,
             onRefresh = onRefresh,
@@ -106,14 +108,12 @@ private fun DashboardContent(
     }
 }
 
-private val BodyMaxWidth = 1120.dp
 private val SidebarWidth = 240.dp
 private val SidebarMinBodyWidth = 760.dp
 
 @Composable
 private fun DashboardBody(
     state: DashboardUiState.Loaded,
-    sideMargin: Dp,
     showSidebar: Boolean,
     onRefresh: () -> Unit,
     onOpenPr: (PullRequest) -> Unit,
@@ -122,16 +122,16 @@ private fun DashboardBody(
     orgRepos: List<String>?,
     onToggleFavorite: (String) -> Unit,
 ) {
-    var sortOption by remember { mutableStateOf(PrSortOption.OLDEST) }
+    var sortOption by rememberSaveable(stateSaver = SortOptionSaver) { mutableStateOf(PrSortOption.OLDEST) }
     // 0 = 리뷰 대기 PR, 1.. = 보조 섹션. 앱은 항상 리뷰 대기 PR 탭으로 시작한다.
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
     // ↑/↓ · j/k 로 이동하는 키보드 포커스 인덱스 (현재 탭 항목 기준)
     // 키보드 선택 인덱스. -1 = 선택 없음 (↑↓ · j/k 를 처음 누를 때 선택 시작)
-    var selectedIndex by remember { mutableStateOf(-1) }
+    var selectedIndex by rememberSaveable { mutableStateOf(-1) }
     // 본문을 펼친 카드 url. 탭 전환 · 새로고침 후에도 같은 url 이면 펼침을 유지한다.
-    var expandedUrls by remember { mutableStateOf(emptySet<String>()) }
+    var expandedUrls by rememberSaveable(stateSaver = StringSetSaver) { mutableStateOf(emptySet<String>()) }
     // 사이드바에서 고른 레포. null = 전체. 앱은 항상 전체로 시작한다.
-    var selectedRepo by remember { mutableStateOf<String?>(null) }
+    var selectedRepo by rememberSaveable { mutableStateOf<String?>(null) }
     var showRepoManager by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
 
@@ -148,8 +148,12 @@ private fun DashboardBody(
         }
 
     val sections = snapshot.sections
-    // '모두 확인' 으로 비운 섹션 id. 다음 로딩 결과가 오면 초기화된다.
-    var clearedSectionIds by remember(sections) { mutableStateOf(emptySet<String>()) }
+    // '모두 확인' 으로 비운 섹션 id. 다음 로딩 결과(fetchedAtIso 가 바뀜)가 오면 초기화된다.
+    // 다른 화면에 있는 동안 새 결과가 와도 초기화되도록 어느 결과에서 비웠는지 함께 저장한다.
+    var clearedSections by rememberSaveable(stateSaver = ClearedSectionsSaver) {
+        mutableStateOf(snapshot.fetchedAtIso to emptySet<String>())
+    }
+    val clearedSectionIds = clearedSections.second.takeIf { clearedSections.first == snapshot.fetchedAtIso }.orEmpty()
     fun itemsOf(result: SectionResult) = if (result.section.id in clearedSectionIds) emptyList() else result.items
 
     // 사이드바 레포 목록: 즐겨찾기 레포를 이름순으로 (항목이 없어도 표시). 개수는 같은 url 을 한 번만 센다.
@@ -179,7 +183,8 @@ private fun DashboardBody(
 
     // 탭별로 마지막으로 본 항목 url (메모리만). 탭의 첫 정상 결과와 선택 중인 탭은 본 것으로 기록한다.
     // 레포를 골라 보는 중이면 화면에 보인 항목만 기존 기록에 더한다.
-    var seenUrls by remember { mutableStateOf(emptyMap<String, Set<String>>()) }
+    // 화면 전환 후에도 유지해서, 다른 화면에 있는 동안 새로 생긴 항목의 빨간 점이 남게 한다.
+    var seenUrls by rememberSaveable(stateSaver = SeenUrlsSaver) { mutableStateOf(emptyMap<String, Set<String>>()) }
     LaunchedEffect(allTabUrls, tabUrls, tabIndex) {
         seenUrls = seenUrls + tabKeys.indices
             .filter { i ->
@@ -305,16 +310,18 @@ private fun DashboardBody(
         ) {
             Column(
                 modifier = Modifier
-                    .padding(horizontal = sideMargin)
+                    .padding(horizontal = PageHorizontalPadding, vertical = PageVerticalPadding)
                     .fillMaxWidth()
-                    .widthIn(max = BodyMaxWidth)
-                    .padding(vertical = 40.dp),
+                    .widthIn(max = PageMaxWidth),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-                DashboardHeader(
-                    lastSyncLabel = formatSyncLabel(snapshot.fetchedAtIso),
-                    userInitials = snapshot.viewerInitials,
-                    avatarUrl = snapshot.avatarUrl,
+                PageHeader(
+                    title = "GitHub",
+                    syncLabel = "마지막 동기화",
+                    syncValue = formatSyncLabel(snapshot.fetchedAtIso),
+                    onSync = onRefresh,
+                    syncOk = state.refreshError == null,
+                    syncing = state.refreshing,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 StatCards(stats = stats, modifier = Modifier.fillMaxWidth())
@@ -352,15 +359,10 @@ private fun DashboardBody(
                                     text = action.label,
                                     onClick = {
                                         action.perform()
-                                        clearedSectionIds = clearedSectionIds + currentSection.section.id
+                                        clearedSections = snapshot.fetchedAtIso to (clearedSectionIds + currentSection.section.id)
                                     },
                                 )
                             }
-                            GlassChip(
-                                text = "새로고침",
-                                leading = { Icon(Icons.Default.Refresh, null, tint = MeowColors.TextPrimary, modifier = Modifier.size(14.dp)) },
-                                onClick = onRefresh,
-                            )
                         }
                         if (currentSection == null) {
                             if (visiblePrs.isEmpty()) {
@@ -402,6 +404,18 @@ private fun DashboardBody(
         }
     }
 }
+
+// 드로워로 다른 화면에 다녀와도 GitHub 화면 상태를 유지하기 위한 Saver (App 의 SaveableStateHolder 에 저장)
+private val SortOptionSaver = Saver<PrSortOption, String>(save = { it.name }, restore = { PrSortOption.valueOf(it) })
+private val StringSetSaver = Saver<Set<String>, ArrayList<String>>(save = { ArrayList(it) }, restore = { it.toSet() })
+private val SeenUrlsSaver = Saver<Map<String, Set<String>>, HashMap<String, ArrayList<String>>>(
+    save = { map -> HashMap(map.mapValues { ArrayList(it.value) }) },
+    restore = { map -> map.mapValues { it.value.toSet() } },
+)
+private val ClearedSectionsSaver = Saver<Pair<String, Set<String>>, ArrayList<String>>(
+    save = { (fetchedAt, ids) -> ArrayList(listOf(fetchedAt) + ids) },
+    restore = { it.first() to it.drop(1).toSet() },
+)
 
 /** ⌘ 와 함께 눌러 탭을 고르는 숫자 키. 인덱스 = 탭 인덱스. */
 private val TabShortcutKeys = listOf(
