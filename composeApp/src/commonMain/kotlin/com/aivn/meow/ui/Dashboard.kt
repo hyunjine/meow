@@ -82,7 +82,8 @@ private fun DashboardContent(
     // 0 = 리뷰 대기 PR, 1.. = 보조 섹션. 앱은 항상 리뷰 대기 PR 탭으로 시작한다.
     var selectedTab by remember { mutableStateOf(0) }
     // ↑/↓ · j/k 로 이동하는 키보드 포커스 인덱스 (현재 탭 항목 기준)
-    var selectedIndex by remember { mutableStateOf(0) }
+    // 키보드 선택 인덱스. -1 = 선택 없음 (↑↓ · j/k 를 처음 누를 때 선택 시작)
+    var selectedIndex by remember { mutableStateOf(-1) }
     // 본문을 펼친 카드 url. 탭 전환 · 새로고침 후에도 같은 url 이면 펼침을 유지한다.
     var expandedUrls by remember { mutableStateOf(emptySet<String>()) }
     val focusRequester = remember { FocusRequester() }
@@ -135,7 +136,7 @@ private fun DashboardContent(
 
     fun selectTab(index: Int) {
         selectedTab = index
-        selectedIndex = 0
+        selectedIndex = -1
     }
 
     fun toggleExpanded(url: String) {
@@ -148,7 +149,7 @@ private fun DashboardContent(
 
     // 정렬 · 새로고침으로 목록이 줄어들면 선택 인덱스를 유효 범위로 맞춘다
     LaunchedEffect(currentUrls.size) {
-        selectedIndex = selectedIndex.coerceIn(0, (currentUrls.size - 1).coerceAtLeast(0))
+        if (selectedIndex >= 0) selectedIndex = selectedIndex.coerceAtMost(currentUrls.lastIndex)
     }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
@@ -197,11 +198,11 @@ private fun DashboardContent(
                     }
                     when (keyEvent.key) {
                         Key.DirectionDown, Key.J -> {
-                            if (currentUrls.isNotEmpty()) selectedIndex = (selectedIndex + 1).coerceAtMost(currentUrls.lastIndex)
+                            if (currentUrls.isNotEmpty()) selectedIndex = (selectedIndex + 1).coerceIn(0, currentUrls.lastIndex)
                             true
                         }
                         Key.DirectionUp, Key.K -> {
-                            if (currentUrls.isNotEmpty()) selectedIndex = (selectedIndex - 1).coerceAtLeast(0)
+                            if (currentUrls.isNotEmpty()) selectedIndex = if (selectedIndex < 0) 0 else (selectedIndex - 1).coerceAtLeast(0)
                             true
                         }
                         Key.Enter, Key.NumPadEnter -> {
@@ -275,7 +276,7 @@ private fun DashboardContent(
                                 pr = pr,
                                 isSelected = index == selectedIndex,
                                 isExpanded = pr.url in expandedUrls,
-                                onToggleExpand = { toggleExpanded(pr.url) },
+                                onToggleExpand = { selectedIndex = -1; toggleExpanded(pr.url) },
                                 onOpen = { onOpenPr(pr) },
                                 modifier = cellModifier,
                             )
@@ -287,7 +288,7 @@ private fun DashboardContent(
                         items = itemsOf(currentSection),
                         selectedIndex = selectedIndex,
                         expandedUrls = expandedUrls,
-                        onToggleExpand = ::toggleExpanded,
+                        onToggleExpand = { url -> selectedIndex = -1; toggleExpanded(url) },
                         onOpenUrl = onOpenUrl,
                     )
                 }

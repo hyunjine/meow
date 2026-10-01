@@ -22,7 +22,7 @@ import com.aivn.meow.theme.glassSurface
 import com.aivn.meow.ui.AuthorAvatar
 import com.aivn.meow.ui.CardBody
 import com.aivn.meow.ui.DotSeparator
-import com.aivn.meow.ui.OpenInGithubButton
+import com.aivn.meow.ui.CardActions
 import com.aivn.meow.ui.PillChip
 import com.aivn.meow.ui.cardBorderColor
 import com.aivn.meow.ui.titleWithNumber
@@ -108,6 +108,6 @@ internal fun SectionRow(
             }
         }
 
-        OpenInGithubButton(onClick = onOpen)
+        CardActions(onOpen = onOpen, hasBody = !item.body.isNullOrBlank(), isExpanded = isExpanded)
     }
 }
