@@ -148,8 +148,12 @@ private fun DashboardBody(
         }
 
     val sections = snapshot.sections
-    // '모두 확인' 으로 비운 섹션 id. 다음 로딩 결과가 오면 초기화된다.
-    var clearedSectionIds by remember(sections) { mutableStateOf(emptySet<String>()) }
+    // '모두 확인' 으로 비운 섹션 id. 다음 로딩 결과(fetchedAtIso 가 바뀜)가 오면 초기화된다.
+    // 다른 화면에 있는 동안 새 결과가 와도 초기화되도록 어느 결과에서 비웠는지 함께 저장한다.
+    var clearedSections by rememberSaveable(stateSaver = ClearedSectionsSaver) {
+        mutableStateOf(snapshot.fetchedAtIso to emptySet<String>())
+    }
+    val clearedSectionIds = clearedSections.second.takeIf { clearedSections.first == snapshot.fetchedAtIso }.orEmpty()
     fun itemsOf(result: SectionResult) = if (result.section.id in clearedSectionIds) emptyList() else result.items
 
     // 사이드바 레포 목록: 즐겨찾기 레포를 이름순으로 (항목이 없어도 표시). 개수는 같은 url 을 한 번만 센다.
@@ -179,7 +183,8 @@ private fun DashboardBody(
 
     // 탭별로 마지막으로 본 항목 url (메모리만). 탭의 첫 정상 결과와 선택 중인 탭은 본 것으로 기록한다.
     // 레포를 골라 보는 중이면 화면에 보인 항목만 기존 기록에 더한다.
-    var seenUrls by remember { mutableStateOf(emptyMap<String, Set<String>>()) }
+    // 화면 전환 후에도 유지해서, 다른 화면에 있는 동안 새로 생긴 항목의 빨간 점이 남게 한다.
+    var seenUrls by rememberSaveable(stateSaver = SeenUrlsSaver) { mutableStateOf(emptyMap<String, Set<String>>()) }
     LaunchedEffect(allTabUrls, tabUrls, tabIndex) {
         seenUrls = seenUrls + tabKeys.indices
             .filter { i ->
@@ -354,7 +359,7 @@ private fun DashboardBody(
                                     text = action.label,
                                     onClick = {
                                         action.perform()
-                                        clearedSectionIds = clearedSectionIds + currentSection.section.id
+                                        clearedSections = snapshot.fetchedAtIso to (clearedSectionIds + currentSection.section.id)
                                     },
                                 )
                             }
@@ -403,6 +408,14 @@ private fun DashboardBody(
 // 드로워로 다른 화면에 다녀와도 GitHub 화면 상태를 유지하기 위한 Saver (App 의 SaveableStateHolder 에 저장)
 private val SortOptionSaver = Saver<PrSortOption, String>(save = { it.name }, restore = { PrSortOption.valueOf(it) })
 private val StringSetSaver = Saver<Set<String>, ArrayList<String>>(save = { ArrayList(it) }, restore = { it.toSet() })
+private val SeenUrlsSaver = Saver<Map<String, Set<String>>, HashMap<String, ArrayList<String>>>(
+    save = { map -> HashMap(map.mapValues { ArrayList(it.value) }) },
+    restore = { map -> map.mapValues { it.value.toSet() } },
+)
+private val ClearedSectionsSaver = Saver<Pair<String, Set<String>>, ArrayList<String>>(
+    save = { (fetchedAt, ids) -> ArrayList(listOf(fetchedAt) + ids) },
+    restore = { it.first() to it.drop(1).toSet() },
+)
 
 /** ⌘ 와 함께 눌러 탭을 고르는 숫자 키. 인덱스 = 탭 인덱스. */
 private val TabShortcutKeys = listOf(
