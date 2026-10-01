@@ -74,7 +74,7 @@ fun DashboardHeader(
             }
 
             Text(
-                text = "PR Review Dashboard",
+                text = "Work Dashboard",
                 color = MeowColors.TextPrimary,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
