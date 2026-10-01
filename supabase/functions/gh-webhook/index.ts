@@ -4,6 +4,8 @@
 //   서명 검증 후 pr_events 테이블에 INSERT.
 // - #3 그 밖의 알림(멘션 · 내 이슈 새 댓글 · 할당 · 내 PR 리뷰)은 notify_events 테이블에 사람 단위로 INSERT.
 //   issue_comment · issues · pull_request_review · pull_request(opened / edited) 이벤트를 처리한다.
+// - #84 내 PR 댓글 · Comment 리뷰 · 참여한 스레드 댓글도 notify_events 에 INSERT.
+//   참여 여부는 thread_participants 에 웹훅으로 본 댓글 · 리뷰 작성자를 기록해 판단한다 (배포 이전 참여는 앱 조회가 담당).
 // - INSERT 는 supabase_realtime publication 을 통해 데스크톱 앱으로 push.
 //
 // Deploy: supabase functions deploy gh-webhook --no-verify-jwt
@@ -55,7 +57,14 @@ function db() {
   });
 }
 
-type NotifyKind = "mentioned" | "new_comment" | "assigned" | "pr_review";
+type NotifyKind =
+  | "mentioned"
+  | "new_comment"
+  | "assigned"
+  | "pr_review"
+  | "pr_comment"
+  | "pr_review_comment"
+  | "thread_comment";
 
 interface NotifyRow {
   delivery_id: string;
@@ -108,8 +117,17 @@ function newMentions(payload: any, body: string | null | undefined): Set<string>
   return new Set([...mentionsIn(body)].filter((login) => !previous.has(login)));
 }
 
-/** 이벤트 하나에서 사람 · 종류별 알림 행을 만든다. 처리 대상이 아니면 빈 배열. */
-function notifyRows(event: string, payload: any, delivery: string): NotifyRow[] {
+/** 대소문자를 무시한 login 비교. 한쪽이라도 없으면 false. */
+function sameLogin(a: string | null | undefined, b: string | null | undefined): boolean {
+  return !!a && !!b && a.toLowerCase() === b.toLowerCase();
+}
+
+/**
+ * 이벤트 하나에서 사람 · 종류별 알림 행을 만든다. 처리 대상이 아니면 빈 배열.
+ * [participants] 는 issue_comment 스레드에 앞서 댓글 · 리뷰를 남긴 login (thread_participants, 소문자).
+ * #84 같은 댓글로 멘션된 사람에게는 새 댓글 계열 알림 없이 멘션 한 번만 보낸다.
+ */
+function notifyRows(event: string, payload: any, delivery: string, participants: string[] = []): NotifyRow[] {
   const rows: NotifyRow[] = [];
   const repo = payload.repository?.full_name as string;
   const add = (
@@ -134,16 +152,15 @@ function notifyRows(event: string, payload: any, delivery: string): NotifyRow[] 
       review_state: reviewState,
     });
   };
-  /** 작성자 본인과 [skip] 을 제외한 멘션마다 'mentioned'. */
+  /** 작성자 본인을 제외한 멘션마다 'mentioned'. */
   const addMentions = (
     mentions: Set<string>,
     thread: Thread,
     actor: string | null | undefined,
     body: string | null | undefined,
-    skip: string | null = null,
   ) => {
     for (const login of mentions) {
-      if (login === actor?.toLowerCase() || login === skip?.toLowerCase()) continue;
+      if (login === actor?.toLowerCase()) continue;
       add("mentioned", login, thread, actor, body);
     }
   };
@@ -156,14 +173,19 @@ function notifyRows(event: string, payload: any, delivery: string): NotifyRow[] 
       const thread: Thread = { repo, number: issue.number, title: issue.title, url: issue.html_url };
       const commenter = comment.user?.login as string | undefined;
       const issueAuthor = issue.user?.login as string | undefined;
-      // 앱의 '내 이슈에 달린 새 댓글' 섹션과 같은 기준: PR 이 아닌 이슈, 작성자가 아닌 사람의 댓글. url 은 댓글 url.
-      let notifiedAuthor: string | null = null;
-      if (!issue.pull_request && issueAuthor && issueAuthor !== commenter) {
-        add("new_comment", issueAuthor, { ...thread, url: comment.html_url }, commenter, comment.body);
-        notifiedAuthor = issueAuthor;
+      const mentions = mentionsIn(comment.body);
+      // 앱의 '새 댓글' 섹션과 같은 기준. url 은 댓글 url.
+      const commentThread: Thread = { ...thread, url: comment.html_url };
+      // 이슈 · PR 작성자: 이슈면 new_comment, PR 이면 pr_comment.
+      if (issueAuthor && !sameLogin(issueAuthor, commenter) && !mentions.has(issueAuthor.toLowerCase())) {
+        add(issue.pull_request ? "pr_comment" : "new_comment", issueAuthor, commentThread, commenter, comment.body);
       }
-      // 새 댓글 알림을 받은 이슈 작성자에게는 같은 댓글로 멘션 알림을 또 보내지 않는다.
-      addMentions(mentionsIn(comment.body), thread, commenter, comment.body, notifiedAuthor);
+      // 참여한 스레드: 앞서 댓글 · 리뷰를 남긴 사람 (작성자 본인 · 스레드 작성자 · 멘션된 사람 제외).
+      for (const login of new Set(participants.map((p) => p.toLowerCase()))) {
+        if (sameLogin(login, commenter) || sameLogin(login, issueAuthor) || mentions.has(login)) continue;
+        add("thread_comment", login, commentThread, commenter, comment.body);
+      }
+      addMentions(mentions, thread, commenter, comment.body);
       break;
     }
     case "issues": {
@@ -188,17 +210,72 @@ function notifyRows(event: string, payload: any, delivery: string): NotifyRow[] 
     case "pull_request_review": {
       if (payload.action !== "submitted") break;
       const state = (payload.review?.state ?? "").toLowerCase();
-      if (state !== "approved" && state !== "changes_requested") break;
       const pr = payload.pull_request;
       const reviewer = payload.review.user?.login as string | undefined;
       const prAuthor = pr.user?.login as string | undefined;
-      if (prAuthor === reviewer) break;
+      if (sameLogin(prAuthor, reviewer)) break;
       const thread: Thread = { repo, number: pr.number, title: pr.title, url: pr.html_url };
-      add("pr_review", prAuthor, thread, reviewer, payload.review.body, state);
+      const body = payload.review.body as string | null | undefined;
+      if (state === "approved" || state === "changes_requested") {
+        add("pr_review", prAuthor, thread, reviewer, body, state);
+      } else if (state === "commented" && (body ?? "").trim()) {
+        // #84 'Comment' 리뷰. 본문 없는 리뷰(코드 줄 댓글 · 답글만)는 범위 밖이라 제외. url 은 리뷰 url.
+        const mentions = mentionsIn(body);
+        if (prAuthor && !mentions.has(prAuthor.toLowerCase())) {
+          add("pr_review_comment", prAuthor, { ...thread, url: payload.review.html_url }, reviewer, body);
+        }
+        addMentions(mentions, thread, reviewer, body);
+      }
       break;
     }
   }
   return rows;
+}
+
+/** #84 이 이벤트로 스레드에 참여한 사람 (새 댓글 · 리뷰 제출). 봇과 처리 대상이 아니면 null. */
+function participantOf(event: string, payload: any): { number: number; login: string; at: string } | null {
+  let user: any = null;
+  let number: number | undefined;
+  let at: string | undefined;
+  if (event === "issue_comment" && payload.action === "created") {
+    user = payload.comment?.user;
+    number = payload.issue?.number;
+    at = payload.comment?.created_at;
+  } else if (event === "pull_request_review" && payload.action === "submitted") {
+    user = payload.review?.user;
+    number = payload.pull_request?.number;
+    at = payload.review?.submitted_at;
+  }
+  if (!user?.login || user.type === "Bot" || typeof number !== "number") return null;
+  return { number, login: user.login.toLowerCase(), at: at ?? new Date().toISOString() };
+}
+
+/** #84 스레드에 앞서 참여한 login 목록. 실패하면 빈 목록 (참여 알림만 빠지고 나머지는 그대로). */
+async function threadParticipants(repo: string, number: number): Promise<string[]> {
+  const { data, error } = await db()
+    .from("thread_participants")
+    .select("login")
+    .eq("repo_full_name", repo)
+    .eq("number", number);
+  if (error) {
+    console.error(`thread_participants select failed: ${error.message}`);
+    return [];
+  }
+  return (data ?? []).map((row: any) => row.login as string);
+}
+
+/** #84 참여 기록. retry 로 같은 이벤트가 다시 와도 같은 행을 덮어쓸 뿐이다. 실패는 기록만 하고 응답에 영향 주지 않는다. */
+async function recordParticipant(repo: string, participant: { number: number; login: string; at: string }) {
+  const { error } = await db().from("thread_participants").upsert(
+    {
+      repo_full_name: repo,
+      number: participant.number,
+      login: participant.login,
+      last_commented_at: participant.at,
+    },
+    { onConflict: "repo_full_name,number,login" },
+  );
+  if (error) console.error(`thread_participants upsert failed: ${error.message}`);
 }
 
 /** 기존 리뷰 요청 처리 — pr_events 에 INSERT. */
@@ -263,7 +340,14 @@ Deno.serve(async (req) => {
     return await insertReviewRequest(event, payload, delivery);
   }
 
-  const rows = notifyRows(event, payload, delivery);
+  const repo = payload.repository?.full_name as string;
+  const participant = participantOf(event, payload);
+  // 참여자 목록은 이번 작성자를 기록하기 전에 읽는다 (작성자 본인은 어차피 알림 대상에서 빠진다).
+  const participants = event === "issue_comment" && payload.action === "created"
+    ? await threadParticipants(repo, payload.issue.number)
+    : [];
+  const rows = notifyRows(event, payload, delivery, participants);
+  if (participant) await recordParticipant(repo, participant);
   if (rows.length === 0) return new Response("ignored", { status: 200 });
 
   // 한 문장으로 INSERT 하므로 retry 로 같은 delivery 가 다시 오면 전체가 unique 위반 → 무시.
