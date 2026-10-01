@@ -27,6 +27,17 @@ jobs:
             echo "::error::PR 대상은 dev/vX.Y.Z 또는 release 여야 해요 (현재: $BASE)"; exit 1
           fi
 
+      - name: 사용자용 릴리즈 노트 확인 (release PR)
+        if: github.base_ref == 'release'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$PR_BODY" | tr -d '\r' \
+            | awk '/^## 릴리즈 노트[[:space:]]*$/{f=1;next} f&&/^## /{exit} f' \
+            | grep -qE '^[[:space:]]*[-*] ' \
+            || { echo "::error::release PR 본문에 사용자용 '## 릴리즈 노트' 섹션(- 항목 1개 이상)이 필요해요. docs/RELEASE.md 참고"; exit 1; }
+
       - name: 소스 체크아웃 (release PR)
         if: github.base_ref == 'release'
         uses: actions/checkout@v4
