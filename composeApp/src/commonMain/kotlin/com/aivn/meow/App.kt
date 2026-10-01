@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +69,8 @@ fun App(
     val viewerLogin = snapshot?.viewerLogin
     // 앱은 항상 GitHub 화면으로 시작한다 (선택은 저장하지 않음)
     var screen by remember { mutableStateOf(AppScreen.GITHUB) }
+    // 화면별 rememberSaveable 상태(탭 · 정렬 · 스크롤 등)를 화면 전환 후에도 유지
+    val screenStateHolder = rememberSaveableStateHolder()
 
     LaunchedEffect(realtimeService, viewerLogin) {
         val service = realtimeService ?: return@LaunchedEffect
@@ -87,17 +90,19 @@ fun App(
                 avatarUrl = snapshot?.avatarUrl,
             )
             Box(modifier = Modifier.weight(1f).fillMaxHeight().background(MeowColors.Background)) {
-                when (screen) {
-                    AppScreen.GITHUB -> Dashboard(
-                        state = state,
-                        onRefresh = { viewModel.refresh() },
-                        onOpenPr = { pr: PullRequest -> onOpenUrl(pr.url) },
-                        onOpenUrl = onOpenUrl,
-                        favoriteRepos = favoriteRepos,
-                        orgRepos = orgRepos,
-                        onToggleFavorite = viewModel::toggleFavorite,
-                    )
-                    AppScreen.WEEKLY_REPORT -> WeeklyReportScreen()
+                screenStateHolder.SaveableStateProvider(screen.name) {
+                    when (screen) {
+                        AppScreen.GITHUB -> Dashboard(
+                            state = state,
+                            onRefresh = { viewModel.refresh() },
+                            onOpenPr = { pr: PullRequest -> onOpenUrl(pr.url) },
+                            onOpenUrl = onOpenUrl,
+                            favoriteRepos = favoriteRepos,
+                            orgRepos = orgRepos,
+                            onToggleFavorite = viewModel::toggleFavorite,
+                        )
+                        AppScreen.WEEKLY_REPORT -> WeeklyReportScreen()
+                    }
                 }
             }
         }

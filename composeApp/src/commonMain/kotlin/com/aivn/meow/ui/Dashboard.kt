@@ -27,6 +27,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -120,16 +122,16 @@ private fun DashboardBody(
     orgRepos: List<String>?,
     onToggleFavorite: (String) -> Unit,
 ) {
-    var sortOption by remember { mutableStateOf(PrSortOption.OLDEST) }
+    var sortOption by rememberSaveable(stateSaver = SortOptionSaver) { mutableStateOf(PrSortOption.OLDEST) }
     // 0 = 리뷰 대기 PR, 1.. = 보조 섹션. 앱은 항상 리뷰 대기 PR 탭으로 시작한다.
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
     // ↑/↓ · j/k 로 이동하는 키보드 포커스 인덱스 (현재 탭 항목 기준)
     // 키보드 선택 인덱스. -1 = 선택 없음 (↑↓ · j/k 를 처음 누를 때 선택 시작)
-    var selectedIndex by remember { mutableStateOf(-1) }
+    var selectedIndex by rememberSaveable { mutableStateOf(-1) }
     // 본문을 펼친 카드 url. 탭 전환 · 새로고침 후에도 같은 url 이면 펼침을 유지한다.
-    var expandedUrls by remember { mutableStateOf(emptySet<String>()) }
+    var expandedUrls by rememberSaveable(stateSaver = StringSetSaver) { mutableStateOf(emptySet<String>()) }
     // 사이드바에서 고른 레포. null = 전체. 앱은 항상 전체로 시작한다.
-    var selectedRepo by remember { mutableStateOf<String?>(null) }
+    var selectedRepo by rememberSaveable { mutableStateOf<String?>(null) }
     var showRepoManager by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
 
@@ -397,6 +399,10 @@ private fun DashboardBody(
         }
     }
 }
+
+// 드로워로 다른 화면에 다녀와도 GitHub 화면 상태를 유지하기 위한 Saver (App 의 SaveableStateHolder 에 저장)
+private val SortOptionSaver = Saver<PrSortOption, String>(save = { it.name }, restore = { PrSortOption.valueOf(it) })
+private val StringSetSaver = Saver<Set<String>, ArrayList<String>>(save = { ArrayList(it) }, restore = { it.toSet() })
 
 /** ⌘ 와 함께 눌러 탭을 고르는 숫자 키. 인덱스 = 탭 인덱스. */
 private val TabShortcutKeys = listOf(
