@@ -83,6 +83,8 @@ private fun DashboardContent(
     var selectedTab by remember { mutableStateOf(0) }
     // ↑/↓ · j/k 로 이동하는 키보드 포커스 인덱스 (현재 탭 항목 기준)
     var selectedIndex by remember { mutableStateOf(0) }
+    // 본문을 펼친 카드 url. 탭 전환 · 새로고침 후에도 같은 url 이면 펼침을 유지한다.
+    var expandedUrls by remember { mutableStateOf(emptySet<String>()) }
     val focusRequester = remember { FocusRequester() }
 
     val snapshot = state.snapshot
@@ -134,6 +136,10 @@ private fun DashboardContent(
     fun selectTab(index: Int) {
         selectedTab = index
         selectedIndex = 0
+    }
+
+    fun toggleExpanded(url: String) {
+        expandedUrls = if (url in expandedUrls) expandedUrls - url else expandedUrls + url
     }
 
     fun openSelected() {
@@ -202,6 +208,10 @@ private fun DashboardContent(
                             openSelected()
                             true
                         }
+                        Key.Spacebar -> {
+                            currentUrls.getOrNull(selectedIndex)?.let(::toggleExpanded)
+                            true
+                        }
                         Key.R -> {
                             if (keyEvent.isMetaPressed) {
                                 onRefresh()
@@ -261,7 +271,14 @@ private fun DashboardContent(
                         EmptyStateCard("리뷰 요청이 없습니다 🎉", "여유로운 하루 보내세요", Modifier.fillMaxWidth())
                     } else {
                         TwoColumnGrid(prs, Modifier.fillMaxWidth()) { index, pr, cellModifier ->
-                            PrRow(pr = pr, isSelected = index == selectedIndex, onOpen = { onOpenPr(pr) }, modifier = cellModifier)
+                            PrRow(
+                                pr = pr,
+                                isSelected = index == selectedIndex,
+                                isExpanded = pr.url in expandedUrls,
+                                onToggleExpand = { toggleExpanded(pr.url) },
+                                onOpen = { onOpenPr(pr) },
+                                modifier = cellModifier,
+                            )
                         }
                     }
                 } else {
@@ -269,6 +286,8 @@ private fun DashboardContent(
                         result = currentSection,
                         items = itemsOf(currentSection),
                         selectedIndex = selectedIndex,
+                        expandedUrls = expandedUrls,
+                        onToggleExpand = ::toggleExpanded,
                         onOpenUrl = onOpenUrl,
                     )
                 }
@@ -290,6 +309,8 @@ private fun SectionTabContent(
     result: SectionResult,
     items: List<SectionItem>,
     selectedIndex: Int,
+    expandedUrls: Set<String>,
+    onToggleExpand: (String) -> Unit,
     onOpenUrl: (String) -> Unit,
 ) {
     val section = result.section
@@ -317,6 +338,8 @@ private fun SectionTabContent(
                 SectionRow(
                     item = item,
                     isSelected = index == selectedIndex,
+                    isExpanded = item.url in expandedUrls,
+                    onToggleExpand = { onToggleExpand(item.url) },
                     onOpen = { onOpenUrl(item.url) },
                     modifier = cellModifier,
                 )
