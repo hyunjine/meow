@@ -25,4 +25,29 @@ data class SectionItem(
     val body: String? = null,
     /** 내 PR 현황의 GitHub reviewDecision (APPROVED 등). 상태 변화 알림 비교용, 다른 섹션은 null. */
     val reviewState: String? = null,
+    /** #84 새 댓글 섹션 전용 출처 · 작성자 · 멘션 여부. 다른 섹션은 null. */
+    val comment: CommentMeta? = null,
+)
+
+/** #84 새 댓글이 달린 곳. [label] 은 카드의 출처 칩 문구. */
+enum class CommentSource(val label: String) {
+    MyIssue("내 이슈"),
+    MyPr("내 PR"),
+    /** 내 PR 에 'Comment' 로 제출된 리뷰. */
+    PrReview("Comment 리뷰"),
+    /** 남의 이슈 · PR 중 내가 댓글을 단 스레드. */
+    Thread("참여한 스레드"),
+}
+
+/**
+ * #84 새 댓글 항목의 알림 판단용 정보.
+ * [threadUrl] 은 이슈 · PR url (항목 url 은 댓글 url), [mentionsMe] 면 새 댓글 대신 멘션으로 한 번만 알린다.
+ */
+data class CommentMeta(
+    val source: CommentSource,
+    val commenter: String,
+    val threadUrl: String,
+    /** 댓글 작성 시각 (ISO-8601). Realtime 항목은 알 수 없어 null. */
+    val createdAtIso: String? = null,
+    val mentionsMe: Boolean = false,
 )

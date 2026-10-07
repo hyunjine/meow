@@ -28,6 +28,9 @@ kotlin {
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
         }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+        }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutines.swing)
@@ -45,7 +48,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg)
             packageName = "Meow"
-            packageVersion = "1.1.0"
+            packageVersion = "1.2.0"
             description = "Personal PR review dashboard for Team-AIVN"
             copyright = "© 2026 aivn"
             vendor = "aivn"

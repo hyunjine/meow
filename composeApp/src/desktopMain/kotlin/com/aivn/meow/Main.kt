@@ -11,7 +11,9 @@ import androidx.compose.ui.window.rememberWindowState
 import com.aivn.meow.config.loadAppConfig
 import com.aivn.meow.config.readGithubToken
 import com.aivn.meow.github.GithubClient
+import com.aivn.meow.model.CommentSource
 import com.aivn.meow.model.SectionItem
+import com.aivn.meow.schedule.openOutlookCalendar
 import com.aivn.meow.ui.MeowNotice
 import io.ktor.client.engine.cio.CIO
 import java.awt.Desktop
@@ -52,7 +54,9 @@ private fun runApp() = application {
                 // 요청마다 토큰을 다시 읽어, 교체된 토큰이 재시작 없이 반영되게 한다. 읽기 실패 시 시작 시 토큰 사용.
                 githubClientFactory = { token -> GithubClient({ readGithubToken() ?: token }, CIO) },
                 onOpenUrl = ::openUrlInBrowser,
+                msEngine = CIO,
                 onNotices = { notices -> notices.toNotifications().forEach(trayState::sendNotification) },
+                onOpenOutlookCalendar = { openOutlookCalendar(::openUrlInBrowser) },
             )
         }
     }
@@ -64,7 +68,7 @@ private const val COMMENT_PREVIEW_LENGTH = 60
 
 private fun List<MeowNotice>.toNotifications(): List<Notification> {
     if (size < GROUP_THRESHOLD) return map { it.toNotification() }
-    // 종류별 개수 요약. 예) 리뷰 요청 2 · 멘션 1 · 새 댓글 3
+    // 종류별 개수 요약. 예) 리뷰 요청 2 · 멘션 1 · 내 이슈 댓글 3
     val summary = groupBy { it.kindLabel() }.entries.joinToString(" · ") { (label, list) -> "$label ${list.size}" }
     return listOf(Notification(title = "새 알림 ${size}건", message = summary, type = Notification.Type.Info))
 }
@@ -72,7 +76,12 @@ private fun List<MeowNotice>.toNotifications(): List<Notification> {
 private fun MeowNotice.kindLabel(): String = when (this) {
     is MeowNotice.ReviewRequested -> "리뷰 요청"
     is MeowNotice.Mentioned -> "멘션"
-    is MeowNotice.NewComment -> "새 댓글"
+    is MeowNotice.NewComment -> when (source) {
+        CommentSource.MyIssue -> "내 이슈 댓글"
+        CommentSource.MyPr -> "내 PR 댓글"
+        CommentSource.PrReview -> "리뷰 의견"
+        CommentSource.Thread -> "참여 스레드 댓글"
+    }
     is MeowNotice.Assigned -> "할당 이슈"
     is MeowNotice.MyPrReviewed -> if (approved) "내 PR 승인" else "내 PR 변경 요청"
 }
@@ -83,8 +92,15 @@ private fun MeowNotice.toNotification(): Notification {
             "새 PR 리뷰 요청 · ${pr.repo}" to "#${pr.number} · ${pr.title} — @${pr.author}"
         is MeowNotice.Mentioned ->
             "나를 멘션했어요 · ${item.repo}" to "#${item.number} · ${item.title} — @${item.author}"
-        is MeowNotice.NewComment ->
-            "내 이슈에 새 댓글 · ${item.repo}" to "#${item.number} · ${item.title}" + commentPreview(item)
+        is MeowNotice.NewComment -> {
+            val heading = when (source) {
+                CommentSource.MyIssue -> "내 이슈에 새 댓글"
+                CommentSource.MyPr -> "내 PR 에 새 댓글"
+                CommentSource.PrReview -> "내 PR 리뷰 의견"
+                CommentSource.Thread -> "참여한 스레드에 새 댓글"
+            }
+            "$heading · ${item.repo}" to "#${item.number} · ${item.title}" + commentPreview(item)
+        }
         is MeowNotice.Assigned ->
             "새로 할당된 이슈 · ${item.repo}" to "#${item.number} · ${item.title}"
         is MeowNotice.MyPrReviewed ->
@@ -93,9 +109,9 @@ private fun MeowNotice.toNotification(): Notification {
     return Notification(title = title, message = message, type = Notification.Type.Info)
 }
 
-/** 새 댓글 항목의 detail 은 "@작성자 님의 댓글", body 는 댓글 전문. 데이터에 있는 만큼만 붙인다. */
+/** 새 댓글 항목의 작성자(없으면 detail "@작성자 님의 댓글")와 body(댓글 전문)로 "@작성자: 앞부분". 데이터에 있는 만큼만 붙인다. */
 private fun commentPreview(item: SectionItem): String {
-    val commenter = item.detail?.removeSuffix(" 님의 댓글")
+    val commenter = item.comment?.commenter?.let { "@$it" } ?: item.detail?.removeSuffix(" 님의 댓글")
     val text = item.body?.replace(Regex("\\s+"), " ")?.trim()?.takeIf { it.isNotEmpty() }
         ?.let { if (it.length > COMMENT_PREVIEW_LENGTH) it.take(COMMENT_PREVIEW_LENGTH) + "…" else it }
     val line = listOfNotNull(commenter, text).joinToString(": ")
