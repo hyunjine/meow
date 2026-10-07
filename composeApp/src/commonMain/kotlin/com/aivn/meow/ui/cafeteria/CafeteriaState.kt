@@ -78,6 +78,12 @@ class CafeteriaViewModel(
 
     fun sync() = load(_state.value.selectedMonday, force = true)
 
+    /** 드로워로 화면에 들어올 때: 보고 있는 주를 받는 중이면 건너뛴다. */
+    fun syncIfIdle() {
+        rollToday()
+        sync()
+    }
+
     fun previousWeek() = select(_state.value.selectedMonday.minus(7, DateTimeUnit.DAY))
 
     fun nextWeek() = select(_state.value.selectedMonday.plus(7, DateTimeUnit.DAY))

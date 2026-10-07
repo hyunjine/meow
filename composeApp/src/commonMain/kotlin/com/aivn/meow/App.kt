@@ -129,7 +129,16 @@ fun App(
         Row(modifier = Modifier.fillMaxSize()) {
             AppDrawer(
                 selected = screen,
-                onSelect = { screen = it },
+                onSelect = { selected ->
+                    screen = selected
+                    // 드로워로 들어올 때마다(같은 화면 다시 눌러도) 그 화면의 동기화 버튼과 같이 새로 불러온다.
+                    when (selected) {
+                        AppScreen.GITHUB -> viewModel.syncIfIdle()
+                        AppScreen.WEEKLY_REPORT -> weeklyViewModel.syncIfIdle()
+                        AppScreen.SCHEDULE -> scheduleViewModel.syncIfIdle()
+                        AppScreen.CAFETERIA -> cafeteriaViewModel.syncIfIdle()
+                    }
+                },
                 viewerLogin = viewerLogin,
                 viewerInitials = snapshot?.viewerInitials,
                 avatarUrl = snapshot?.avatarUrl,
