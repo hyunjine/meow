@@ -195,25 +195,37 @@ private fun WeekColumns(week: ScheduleWeek, today: LocalDate) {
 @Composable
 private fun DayColumn(letter: String, date: LocalDate, isToday: Boolean, entries: List<AbsenceEntry>, modifier: Modifier) {
     val shape = RoundedCornerShape(14.dp)
-    val headerColor = if (isToday) MeowColors.Brand else MeowColors.TextPrimary
-    val subColor = if (isToday) MeowColors.Brand else MeowColors.TextTertiary
+    val headerColor = if (isToday) Color.White else MeowColors.TextPrimary
+    val subColor = if (isToday) Color.White else MeowColors.TextTertiary
     val people = entries.mapNotNull { it.name }.distinct().size
     Column(
         modifier = modifier
             .heightIn(min = 420.dp)
             .clip(shape)
             .background(Color.White)
-            .border(1.dp, CardBorder, shape)
-            .padding(horizontal = 12.dp, vertical = 14.dp),
+            .border(if (isToday) 2.dp else 1.dp, if (isToday) MeowColors.Brand else CardBorder, shape)
+            .padding(start = 12.dp, end = 12.dp, top = if (isToday) 12.dp else 14.dp, bottom = 14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        // 오늘 칸은 헤더를 브랜드 색 바로 채워 강조한다.
+        val headerModifier = if (isToday) {
+            Modifier
+                .padding(bottom = 4.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(MeowColors.Brand)
+                .padding(horizontal = 12.dp, vertical = 10.dp)
+        } else {
+            Modifier.fillMaxWidth().padding(bottom = 4.dp)
+        }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+            modifier = headerModifier,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(text = letter, color = headerColor, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Text(text = "${date.monthNumber}/${date.dayOfMonth}", color = subColor, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            if (isToday) TodayPill()
             Spacer(Modifier.weight(1f))
             if (people > 0) {
                 Text(text = "${people}명", color = subColor, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
@@ -232,6 +244,20 @@ private fun DayColumn(letter: String, date: LocalDate, isToday: Boolean, entries
             entries.forEach { AbsenceCard(it) }
         }
     }
+}
+
+@Composable
+private fun TodayPill() {
+    Text(
+        text = "오늘",
+        modifier = Modifier
+            .clip(RoundedCornerShape(percent = 50))
+            .background(Color.White)
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        color = MeowColors.Brand,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+    )
 }
 
 @Composable
