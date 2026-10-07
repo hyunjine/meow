@@ -2,11 +2,13 @@ package com.aivn.meow.weekly
 
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
+import kotlinx.serialization.Serializable
 
 /** 주간회의 자료 폴더 위치. */
 data class WeeklyFolder(val driveId: String, val itemId: String, val name: String? = null)
 
 /** 폴더 안의 주차 문서 하나. 파일명 `... Week40-41 ...` → [week]=40, [nextWeek]=41. */
+@Serializable
 data class WeekDoc(
     val week: Int,
     val nextWeek: Int,
@@ -19,8 +21,10 @@ data class WeekDoc(
 )
 
 /** 이번 주 문서를 어디서 찾았는지. */
+@Serializable
 enum class WeekDocSource { Folder, Mail }
 
+@Serializable
 data class ThisWeekDoc(
     val doc: WeekDoc,
     val source: WeekDocSource,
@@ -29,9 +33,11 @@ data class ThisWeekDoc(
 )
 
 /** 날짜 구간(양 끝 포함). */
+@Serializable
 data class DateRange(val start: LocalDate, val endInclusive: LocalDate)
 
 /** 표 헤더의 한 열(실적 또는 계획) 라벨. 예: `실적(Week 40, 9.28~10.2)`. */
+@Serializable
 data class WeeklyColumn(
     val label: String,
     val week: Int?,
@@ -41,6 +47,7 @@ data class WeeklyColumn(
     val period: DateRange?,
 )
 
+@Serializable
 data class WeeklyHeader(
     /** 표 위 제목 문단(예 `기술연구소_주간업무내용 공유 (Week 40-41)`). */
     val title: String?,
@@ -52,6 +59,7 @@ data class WeeklyHeader(
  * 문서에서 읽은 내 행. [found] 가 false 면 표에 내 이름 행이 없다(이때 [results]/[plans] 는 빈 목록).
  * [eTag] 는 읽은 시점의 버전 — 저장 시 그대로 넘기면 그 사이 변경을 감지한다.
  */
+@Serializable
 data class MyWeeklyRow(
     val doc: WeekDoc,
     val header: WeeklyHeader,
