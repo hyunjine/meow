@@ -6,15 +6,16 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -198,27 +199,52 @@ private fun WeekContent(
     onOpenUrl: (String) -> Unit,
     onOpenLightbox: (LightboxTarget) -> Unit,
 ) {
-    WeeklyMenuCard(
-        post = week.weeklyMenu,
-        onOpenUrl = onOpenUrl,
-        onOpen = { post -> onOpenLightbox(LightboxTarget.Weekly(post, week.monday)) },
-    )
-    Text(text = "오늘의 중식", color = MeowColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Top,
-    ) {
+    val weeklyCard = @Composable {
+        WeeklyMenuCard(
+            post = week.weeklyMenu,
+            onOpenUrl = onOpenUrl,
+            onOpen = { post -> onOpenLightbox(LightboxTarget.Weekly(post, week.monday)) },
+        )
+    }
+    val dayCards = @Composable {
         week.days.forEach { day ->
             DayCard(
                 day = day,
                 today = today,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 onOpenPhoto = { index -> onOpenLightbox(LightboxTarget.Lunch(day, index)) },
             )
         }
     }
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        if (maxWidth >= SideLayoutMinWidth) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Box(Modifier.weight(1f)) { weeklyCard() }
+                Column(
+                    modifier = Modifier.width(DayColumnWidth),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) { dayCards() }
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                weeklyCard()
+                Spacer(Modifier.height(6.dp))
+                dayCards()
+            }
+        }
+    }
 }
+
+/** 주간 메뉴표 옆에 요일 카드 열을 둘 수 있는 최소 본문 폭. 이보다 좁으면 세로로 쌓는다. */
+private val SideLayoutMinWidth = 760.dp
+private val DayColumnWidth = 240.dp
 
 @Composable
 private fun WeeklyMenuCard(post: WeeklyMenuPost?, onOpenUrl: (String) -> Unit, onOpen: (WeeklyMenuPost) -> Unit) {
@@ -264,7 +290,6 @@ private fun DayCard(day: CafeteriaDay, today: LocalDate, modifier: Modifier, onO
     val shape = RoundedCornerShape(14.dp)
     Column(
         modifier = modifier
-            .heightIn(min = 230.dp)
             .clip(shape)
             .background(Color.White)
             .border(if (isToday) 1.5.dp else 1.dp, if (isToday) MeowColors.Brand else CardBorder, shape)
@@ -309,7 +334,7 @@ private fun DayCard(day: CafeteriaDay, today: LocalDate, modifier: Modifier, onO
                                 contentDescription = "중식 사진",
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(48.dp)
+                                    .height(44.dp)
                                     .clip(RoundedCornerShape(6.dp))
                                     .clickable { onOpenPhoto(i + 1) },
                             )
@@ -322,9 +347,9 @@ private fun DayCard(day: CafeteriaDay, today: LocalDate, modifier: Modifier, onO
             }
             lunch != null -> Text(text = lunch.menu.ifBlank { lunch.title }, color = MenuText, fontSize = 12.sp, lineHeight = 17.sp)
             day.holiday -> StatusBox(background = HolidayBg) {
-                Text(text = "운영 없음", color = HolidayText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text(text = "운영 없음", color = HolidayText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 day.holidayName?.let {
-                    Text(text = it, color = MeowColors.TextTertiary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                    Text(text = " · $it", color = MeowColors.TextTertiary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                 }
             }
             isToday -> StatusBox(background = SoftBg) {
@@ -340,17 +365,16 @@ private fun DayCard(day: CafeteriaDay, today: LocalDate, modifier: Modifier, onO
     }
 }
 
+/** 게시물이 없는 날의 한 줄짜리 상태 표시. */
 @Composable
-private fun StatusBox(background: Color, content: @Composable ColumnScope.() -> Unit) {
-    Column(
+private fun StatusBox(background: Color, content: @Composable RowScope.() -> Unit) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(158.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(background)
-            .padding(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
         content = content,
     )
 }
