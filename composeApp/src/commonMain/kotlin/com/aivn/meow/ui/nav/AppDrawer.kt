@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -46,7 +47,7 @@ import meow.composeapp.generated.resources.github_mark
 import org.jetbrains.compose.resources.painterResource
 
 /** 드로워로 고르는 화면. */
-enum class AppScreen { GITHUB, WEEKLY_REPORT, SCHEDULE }
+enum class AppScreen { GITHUB, WEEKLY_REPORT, SCHEDULE, CAFETERIA }
 
 data class DrawerItem(val screen: AppScreen, val label: String, val icon: @Composable () -> Painter)
 
@@ -63,6 +64,7 @@ val AppDrawerSections = listOf(
         items = listOf(
             DrawerItem(AppScreen.WEEKLY_REPORT, "주간 보고") { rememberVectorPainter(Icons.Outlined.Description) },
             DrawerItem(AppScreen.SCHEDULE, "일정") { rememberVectorPainter(Icons.Outlined.CalendarMonth) },
+            DrawerItem(AppScreen.CAFETERIA, "구내식당") { rememberVectorPainter(Icons.Outlined.Restaurant) },
         ),
     ),
 )
