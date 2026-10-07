@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -126,7 +127,8 @@ private fun TabChip(tab: TabChipInfo, selected: Boolean, onClick: () -> Unit) {
 }
 
 /**
- * [items] 를 2열로 배치한다. 상위 verticalScroll 안에서 쓰므로 Lazy 그리드 대신 두 개씩 Row 로 묶는다.
+ * [items] 를 2열로 배치한다. 폭이 [OneColumnBelow] 보다 좁으면 1열로 쌓는다.
+ * 상위 verticalScroll 안에서 쓰므로 Lazy 그리드 대신 열 수만큼 Row 로 묶는다.
  * [cell] 은 목록 인덱스 · 항목 · 칸 폭 modifier 를 받는다.
  */
 @Composable
@@ -136,21 +138,27 @@ internal fun <T> TwoColumnGrid(
     spacing: Dp = 24.dp,
     cell: @Composable (index: Int, item: T, modifier: Modifier) -> Unit,
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(spacing)) {
-        items.chunked(2).forEachIndexed { rowIndex, pair ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(spacing),
-                verticalAlignment = Alignment.Top,
-            ) {
-                pair.forEachIndexed { column, item ->
-                    cell(rowIndex * 2 + column, item, Modifier.weight(1f))
+    BoxWithConstraints(modifier = modifier) {
+        val columns = if (maxWidth < OneColumnBelow) 1 else 2
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(spacing)) {
+            items.chunked(columns).forEachIndexed { rowIndex, row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(spacing),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    row.forEachIndexed { column, item ->
+                        cell(rowIndex * columns + column, item, Modifier.weight(1f))
+                    }
+                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                 }
-                if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
         }
     }
 }
+
+/** 이보다 좁으면 카드 한 장이 너무 좁아져 1열로 바꾼다. */
+private val OneColumnBelow = 640.dp
 
 /** 그리드 자리에 표시하는 빈 상태 · 오류 카드. */
 @Composable
