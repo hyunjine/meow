@@ -79,6 +79,17 @@ data class WeeklyUiState(
     /** itemId → 내 행 상태. 이번 주 문서는 [WeeklyContent.Found] 로 판단한다. */
     val weekStatus: Map<String, WeekRowStatus> = emptyMap(),
     val currentWeek: Int,
+    /** itemId → 지난 주차 문서에서 읽은 내 행(상태 확인 · 선택 시 읽은 것). 읽기 전용 보기에 쓴다. */
+    val pastRows: Map<String, MyWeeklyRow> = emptyMap(),
+    /** 목록에서 고른 지난 주차. null 이면 이번 주 화면. */
+    val selectedPast: PastWeekSelection? = null,
+)
+
+/** 고른 지난 주차. [row] 를 아직 못 읽었으면 [loading] 중이거나 [error] 가 있다. */
+data class PastWeekSelection(
+    val doc: WeekDoc,
+    val loading: Boolean = false,
+    val error: String? = null,
 )
 
 /**
@@ -100,6 +111,7 @@ class WeeklyReportViewModel(
 
     private var syncJob: Job? = null
     private var statusJob: Job? = null
+    private var pastJob: Job? = null
 
     /** 앱 시작 시 저장된 계정으로 조용히 다시 연결한다(동기화는 하지 않음). */
     fun start() {
@@ -114,6 +126,7 @@ class WeeklyReportViewModel(
     fun signOut() {
         syncJob?.cancel()
         statusJob?.cancel()
+        pastJob?.cancel()
         scope.launch {
             auth.signOut()
             _state.update { WeeklyUiState(reportName = it.reportName, currentWeek = it.currentWeek) }
@@ -136,7 +149,8 @@ class WeeklyReportViewModel(
         val name = _state.value.reportName ?: return
         if (_state.value.syncing || auth.state.value !is MsAuthState.Connected) return
         statusJob?.cancel()
-        _state.update { it.copy(syncing = true, currentWeek = today().isoWeekNumber()) }
+        pastJob?.cancel()
+        _state.update { it.copy(syncing = true, currentWeek = today().isoWeekNumber(), selectedPast = null) }
         syncJob = scope.launch {
             try {
                 val today = today()
@@ -151,6 +165,8 @@ class WeeklyReportViewModel(
                         content = content,
                         weeks = weeks,
                         weekStatus = emptyMap(),
+                        pastRows = emptyMap(),
+                        selectedPast = null,
                     )
                 }
                 loadPastStatuses(weeks, thisWeek, name)
@@ -163,6 +179,58 @@ class WeeklyReportViewModel(
                         lastSync = WeeklySyncInfo(clock.now(), it.lastSync?.doc, failed = true),
                         content = WeeklyContent.Failed(e.toUserMessage()),
                     )
+                }
+            }
+        }
+    }
+
+    /**
+     * 지난 주차를 골라 오른쪽에 내 행을 읽기 전용으로 보여 준다. 상태 확인 때 읽어 둔 행이 있으면 그대로 쓰고,
+     * 없으면(아직 확인 전 · 실패) 그 문서만 읽는다. 문서에는 쓰지 않는다.
+     */
+    fun selectPastWeek(doc: WeekDoc) {
+        if (_state.value.selectedPast?.doc?.itemId == doc.itemId && _state.value.selectedPast?.error == null) return
+        pastJob?.cancel()
+        if (doc.itemId in _state.value.pastRows) {
+            _state.update { it.copy(selectedPast = PastWeekSelection(doc)) }
+            return
+        }
+        loadPastRow(doc)
+    }
+
+    /** 고른 지난 주차 읽기를 다시 시도한다. */
+    fun retryPastWeek() {
+        val selected = _state.value.selectedPast ?: return
+        if (selected.loading) return
+        loadPastRow(selected.doc)
+    }
+
+    /** 이번 주 화면으로 돌아간다. */
+    fun clearPastWeek() {
+        pastJob?.cancel()
+        _state.update { it.copy(selectedPast = null) }
+    }
+
+    private fun loadPastRow(doc: WeekDoc) {
+        val name = _state.value.reportName ?: return
+        _state.update { it.copy(selectedPast = PastWeekSelection(doc, loading = true)) }
+        pastJob = scope.launch {
+            try {
+                val row = io { repository.readMyRow(doc, name) }
+                _state.update { s ->
+                    val status = row.status()
+                    s.copy(
+                        pastRows = s.pastRows + (doc.itemId to row),
+                        weekStatus = if (status != null) s.weekStatus + (doc.itemId to status) else s.weekStatus,
+                        selectedPast = if (s.selectedPast?.doc?.itemId == doc.itemId) PastWeekSelection(doc) else s.selectedPast,
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { s ->
+                    if (s.selectedPast?.doc?.itemId != doc.itemId) return@update s
+                    s.copy(selectedPast = PastWeekSelection(doc, error = "문서를 읽지 못했어요: ${e.toUserMessage()}"))
                 }
             }
         }
@@ -260,9 +328,13 @@ class WeeklyReportViewModel(
                 val row = runCatching { io { repository.readMyRow(doc, name) } }
                     .onFailure { if (it is CancellationException) throw it }
                     .getOrNull() ?: continue
-                if (!row.found) continue
-                val status = if (row.results.isNotEmpty()) WeekRowStatus.Done else WeekRowStatus.Empty
-                _state.update { it.copy(weekStatus = it.weekStatus + (doc.itemId to status)) }
+                val status = row.status()
+                _state.update {
+                    it.copy(
+                        pastRows = it.pastRows + (doc.itemId to row),
+                        weekStatus = if (status != null) it.weekStatus + (doc.itemId to status) else it.weekStatus,
+                    )
+                }
             }
         }
     }
@@ -292,6 +364,13 @@ class WeeklyReportViewModel(
     companion object {
         const val WEEK_LIST_SIZE = 6
     }
+}
+
+/** 내 행 상태. 표에 내 행이 없으면 null('—'). */
+private fun MyWeeklyRow.status(): WeekRowStatus? = when {
+    !found -> null
+    results.isNotEmpty() -> WeekRowStatus.Done
+    else -> WeekRowStatus.Empty
 }
 
 /** ISO 주차 [week] 의 월요일. 1월 4일이 든 주가 1주차. */
