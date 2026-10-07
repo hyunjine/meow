@@ -24,6 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aivn.meow.cafeteria.CafeteriaRepository
+import com.aivn.meow.cafeteria.KakaoChannelClient
 import com.aivn.meow.config.AppConfig
 import com.aivn.meow.data.PrRepository
 import com.aivn.meow.github.GithubClient
@@ -38,6 +40,8 @@ import com.aivn.meow.ui.Dashboard
 import com.aivn.meow.ui.DashboardUiState
 import com.aivn.meow.ui.DashboardViewModel
 import com.aivn.meow.ui.MeowNotice
+import com.aivn.meow.ui.cafeteria.CafeteriaScreen
+import com.aivn.meow.ui.cafeteria.CafeteriaViewModel
 import com.aivn.meow.ui.nav.AppDrawer
 import com.aivn.meow.ui.nav.AppScreen
 import com.aivn.meow.ui.schedule.ScheduleScreen
@@ -81,12 +85,17 @@ fun App(
             scope = scope,
         )
     }
+    // 구내식당은 인증 없는 카카오 채널 공개 API 를 쓴다.
+    val cafeteriaViewModel = remember {
+        CafeteriaViewModel(CafeteriaRepository(KakaoChannelClient(msEngine)), scope)
+    }
     val realtimeService = remember(config.supabase) {
         config.supabase?.let { RealtimeService(it) }
     }
 
     LaunchedEffect(viewModel) { viewModel.start() }
     LaunchedEffect(weeklyViewModel) { weeklyViewModel.start() }
+    LaunchedEffect(cafeteriaViewModel) { cafeteriaViewModel.start() }
     LaunchedEffect(viewModel) {
         viewModel.notices.collect { onNotices(it) }
     }
@@ -132,6 +141,7 @@ fun App(
                         )
                         AppScreen.WEEKLY_REPORT -> WeeklyReportScreen(viewModel = weeklyViewModel, onOpenUrl = onOpenUrl)
                         AppScreen.SCHEDULE -> ScheduleScreen(viewModel = scheduleViewModel)
+                        AppScreen.CAFETERIA -> CafeteriaScreen(viewModel = cafeteriaViewModel, onOpenUrl = onOpenUrl)
                     }
                 }
             }
