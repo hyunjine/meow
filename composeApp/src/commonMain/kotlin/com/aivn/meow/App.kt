@@ -92,7 +92,7 @@ fun App(
             scope = scope,
         )
     }
-    // 구내식당은 인증 없는 카카오 채널 공개 API 를 쓴다.
+    // 구내 식당은 인증 없는 카카오 채널 공개 API 를 쓴다.
     val cafeteriaViewModel = remember {
         CafeteriaViewModel(CafeteriaRepository(KakaoChannelClient(msEngine)), scope)
     }

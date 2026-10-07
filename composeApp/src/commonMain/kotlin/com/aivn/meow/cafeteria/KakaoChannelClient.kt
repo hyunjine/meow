@@ -76,7 +76,7 @@ class KakaoChannelClient(engineFactory: HttpClientEngineFactory<*>, private val 
     }
 
     companion object {
-        /** kt대덕2연구센터 구내식당 채널. */
+        /** kt대덕2연구센터 구내 식당 채널. */
         const val CAFETERIA_PROFILE = "_xfaxors"
         const val USER_AGENT =
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36"

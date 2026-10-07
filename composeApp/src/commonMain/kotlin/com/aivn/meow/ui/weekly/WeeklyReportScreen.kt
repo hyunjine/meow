@@ -57,6 +57,7 @@ import com.aivn.meow.ms.MsAuthState
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
 import com.aivn.meow.ui.EmptyStateCard
+import com.aivn.meow.ui.common.OpenOriginalButton
 import com.aivn.meow.ui.common.PageHeader
 import com.aivn.meow.ui.common.PageHorizontalPadding
 import com.aivn.meow.ui.common.PageMaxWidth
@@ -496,7 +497,7 @@ private fun DocumentCard(
             Text(text = it, color = MeowColors.Warning, fontSize = 12.sp, fontWeight = FontWeight.Medium)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            row.doc.webUrl?.let { url -> LinkText("원본 문서 열기 ↗", onClick = { onOpenUrl(url) }, fontSize = 12.sp) }
+            row.doc.webUrl?.let { url -> OpenOriginalButton(onClick = { onOpenUrl(url) }) }
             Spacer(Modifier.weight(1f))
             found.saveMessage?.let { message ->
                 Text(
@@ -573,7 +574,7 @@ private fun PastWeekCard(
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             LinkText("이번 주로 돌아가기", onClick = onBack, fontSize = 12.sp)
             Spacer(Modifier.weight(1f))
-            doc.webUrl?.let { url -> OutlineButton(text = "원본 보기 ↗", onClick = { onOpenUrl(url) }) }
+            doc.webUrl?.let { url -> OpenOriginalButton(onClick = { onOpenUrl(url) }) }
         }
     }
 }

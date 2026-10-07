@@ -47,6 +47,7 @@ import com.aivn.meow.cafeteria.CafeteriaWeek
 import com.aivn.meow.cafeteria.KST
 import com.aivn.meow.cafeteria.WeeklyMenuPost
 import com.aivn.meow.theme.MeowColors
+import com.aivn.meow.ui.common.OpenOriginalButton
 import com.aivn.meow.ui.common.PageHeader
 import com.aivn.meow.ui.common.PageHorizontalPadding
 import com.aivn.meow.ui.common.PageMaxWidth
@@ -75,7 +76,7 @@ internal sealed interface LightboxTarget {
     data class Weekly(val post: WeeklyMenuPost, val monday: LocalDate) : LightboxTarget
 }
 
-/** 구내식당 화면: 카카오톡 채널의 주간 메뉴표와 요일별 '오늘의 중식' 사진. */
+/** 구내 식당 화면: 카카오톡 채널의 주간 메뉴표와 요일별 '오늘의 중식' 사진. */
 @Composable
 fun CafeteriaScreen(
     viewModel: CafeteriaViewModel,
@@ -100,8 +101,8 @@ fun CafeteriaScreen(
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 PageHeader(
-                    title = "구내식당",
-                    subtitle = "kt대덕2연구센터 구내식당 · 카카오톡 채널",
+                    title = "구내 식당",
+                    subtitle = "kt대덕2연구센터 구내 식당 · 카카오톡 채널",
                     syncLabel = if (state.lastSyncFailed) "마지막 동기화 · 실패" else "마지막 동기화",
                     syncValue = state.lastSync?.let { formatSyncTime(it, Clock.System.now()) } ?: "아직 동기화 안 함",
                     syncOk = !state.lastSyncFailed,
@@ -242,14 +243,7 @@ private fun WeeklyMenuCard(post: WeeklyMenuPost?, onOpenUrl: (String) -> Unit, o
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.weight(1f),
                 )
-                Text(
-                    text = "원본 보기 ↗",
-                    color = MeowColors.Brand,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { onOpenUrl(post.permalink) }
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                )
+                OpenOriginalButton(onClick = { onOpenUrl(post.permalink) })
             }
         }
         val photo = post?.photo
