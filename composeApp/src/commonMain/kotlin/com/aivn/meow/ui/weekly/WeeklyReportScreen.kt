@@ -109,7 +109,12 @@ fun WeeklyReportScreen(
                 )
                 when {
                     connected == null -> ConnectCard(auth = auth, onConnect = viewModel::signIn)
-                    state.reportName == null -> ReportNameCard(onSave = viewModel::saveReportName)
+                    state.reportName == null || state.editingName -> ReportNameCard(
+                        initialName = state.reportName,
+                        onSave = viewModel::saveReportName,
+                        // 저장된 이름이 있을 때(이름 바꾸기)만 돌아갈 수 있다.
+                        onCancel = if (state.reportName != null) viewModel::cancelEditingName else null,
+                    )
                     else -> ReportBody(
                         state = state,
                         viewModel = viewModel,
@@ -120,8 +125,8 @@ fun WeeklyReportScreen(
                 if (connected != null) {
                     AccountLine(
                         upn = connected.upn,
-                        reportName = state.reportName,
-                        onChangeName = viewModel::clearReportName,
+                        reportName = state.reportName.takeUnless { state.editingName },
+                        onChangeName = viewModel::startEditingName,
                         onSignOut = viewModel::signOut,
                     )
                 }
@@ -198,8 +203,8 @@ private fun ConnectCard(auth: MsAuthState, onConnect: () -> Unit) {
 }
 
 @Composable
-private fun ReportNameCard(onSave: (String) -> Unit) {
-    var name by rememberSaveable { mutableStateOf("") }
+private fun ReportNameCard(initialName: String?, onSave: (String) -> Unit, onCancel: (() -> Unit)?) {
+    var name by rememberSaveable(initialName) { mutableStateOf(initialName.orEmpty()) }
     val save = { if (name.isNotBlank()) onSave(name) }
     WeeklyCard(modifier = Modifier.fillMaxWidth()) {
         Text("보고서 표의 내 이름", color = MeowColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
@@ -213,7 +218,14 @@ private fun ReportNameCard(onSave: (String) -> Unit) {
             BasicTextField(
                 value = name,
                 onValueChange = { name = it },
-                modifier = Modifier.width(280.dp),
+                modifier = Modifier.width(280.dp).onPreviewKeyEvent { event ->
+                    if (onCancel != null && event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
+                        onCancel()
+                        true
+                    } else {
+                        false
+                    }
+                },
                 singleLine = true,
                 textStyle = TextStyle(color = MeowColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium),
                 cursorBrush = SolidColor(MeowColors.Brand),
@@ -234,6 +246,7 @@ private fun ReportNameCard(onSave: (String) -> Unit) {
                 },
             )
             BrandButton(text = "저장", onClick = save, enabled = name.isNotBlank())
+            if (onCancel != null) TextButton(text = "취소", onClick = onCancel)
         }
     }
 }
@@ -333,7 +346,7 @@ private fun ReportBody(
                     onRegenerate = viewModel::regenerateDraft,
                     onPublish = onPublish,
                     onOpenUrl = onOpenUrl,
-                    onChangeName = viewModel::clearReportName,
+                    onChangeName = viewModel::startEditingName,
                 )
             }
         }
@@ -711,6 +724,20 @@ private fun LinkText(text: String, onClick: () -> Unit, fontSize: androidx.compo
         modifier = Modifier.clip(RoundedCornerShape(4.dp)).clickable(onClick = onClick).padding(horizontal = 2.dp),
         color = MeowColors.Brand,
         fontSize = fontSize,
+        fontWeight = FontWeight.SemiBold,
+    )
+}
+
+@Composable
+private fun TextButton(text: String, onClick: () -> Unit) {
+    Text(
+        text = text,
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 11.dp),
+        color = MeowColors.TextSecondary,
+        fontSize = 13.sp,
         fontWeight = FontWeight.SemiBold,
     )
 }

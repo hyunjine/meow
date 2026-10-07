@@ -71,6 +71,8 @@ enum class WeekRowStatus { Done, Empty }
 
 data class WeeklyUiState(
     val reportName: String? = null,
+    /** '이름 바꾸기' 로 이름 입력 중. 새 이름을 저장하기 전까지 [reportName] 은 그대로 둔다(취소하면 돌아간다). */
+    val editingName: Boolean = false,
     val syncing: Boolean = false,
     val lastSync: WeeklySyncInfo? = null,
     val content: WeeklyContent = WeeklyContent.Idle,
@@ -136,13 +138,23 @@ class WeeklyReportViewModel(
     fun saveReportName(name: String) {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return
+        if (trimmed == _state.value.reportName) {
+            _state.update { it.copy(editingName = false) }
+            return
+        }
         WeeklyReportRepository.saveReportName(trimmed)
         // 이름이 바뀌면 이전 이름으로 읽은 행은 버린다.
         _state.update { WeeklyUiState(reportName = trimmed, currentWeek = it.currentWeek) }
     }
 
-    fun clearReportName() {
-        _state.update { it.copy(reportName = null) }
+    /** 이름 입력 화면으로 간다. 저장된 이름은 새 이름을 저장할 때까지 지우지 않는다. */
+    fun startEditingName() {
+        _state.update { it.copy(editingName = true) }
+    }
+
+    /** 이름 입력을 그만두고 저장돼 있던 이름으로 돌아간다. 저장된 이름이 없으면 그대로 입력 화면에 둔다. */
+    fun cancelEditingName() {
+        _state.update { if (it.reportName != null) it.copy(editingName = false) else it }
     }
 
     fun sync() {
