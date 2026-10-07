@@ -47,6 +47,7 @@ import com.aivn.meow.cafeteria.CafeteriaWeek
 import com.aivn.meow.cafeteria.KST
 import com.aivn.meow.cafeteria.WeeklyMenuPost
 import com.aivn.meow.theme.MeowColors
+import com.aivn.meow.ui.common.OpenOriginalButton
 import com.aivn.meow.ui.common.PageHeader
 import com.aivn.meow.ui.common.PageHorizontalPadding
 import com.aivn.meow.ui.common.PageMaxWidth
@@ -242,14 +243,7 @@ private fun WeeklyMenuCard(post: WeeklyMenuPost?, onOpenUrl: (String) -> Unit, o
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.weight(1f),
                 )
-                Text(
-                    text = "원본 보기 ↗",
-                    color = MeowColors.Brand,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { onOpenUrl(post.permalink) }
-                        .padding(horizontal = 4.dp, vertical = 2.dp),
-                )
+                OpenOriginalButton(onClick = { onOpenUrl(post.permalink) })
             }
         }
         val photo = post?.photo

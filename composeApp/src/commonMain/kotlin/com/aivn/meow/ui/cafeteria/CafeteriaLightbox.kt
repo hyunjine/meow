@@ -55,6 +55,7 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.aivn.meow.cafeteria.CafeteriaPhoto
+import com.aivn.meow.ui.common.OpenOriginalButton
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.plus
 
@@ -179,17 +180,7 @@ internal fun CafeteriaLightbox(
                         )
                     }
                 }
-                Text(
-                    text = "원본 열기 ↗",
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(GlassButton)
-                        .clickable { onOpenUrl(photo.xlarge) }
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                )
+                OpenOriginalButton(onClick = { onOpenUrl(photo.xlarge) }, dark = true)
                 CircleButton(text = "✕", size = 36, fontSize = 14, onClick = onClose)
             }
 

@@ -16,17 +16,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
-import androidx.compose.material3.TooltipBox
-import androidx.compose.material3.TooltipDefaults
-import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +44,7 @@ import com.aivn.meow.model.CiStatus
 import com.aivn.meow.model.PullRequest
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
+import com.aivn.meow.ui.common.OpenOriginalButton
 
 /** 정렬 칩. 클릭하면 세 정렬 옵션 중 하나를 고르는 드롭다운 메뉴가 뜬다. */
 @Composable
@@ -237,48 +232,20 @@ private fun tidyBody(raw: String): String =
         .replace(Regex("\n{3,}"), "\n\n")
         .trim()
 
-/** 카드 오른쪽 위 열 — 'GitHub에서 열기' 버튼, 본문이 있으면 그 아래 펼치기 표시(⌄ / ⌃). */
+/** 카드 오른쪽 위 열 — '원본 보기' 버튼, 본문이 있으면 그 아래 펼치기 표시(⌄ / ⌃). */
 @Composable
 internal fun CardActions(onOpen: () -> Unit, hasBody: Boolean, isExpanded: Boolean) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+        horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        OpenInGithubButton(onClick = onOpen)
+        OpenOriginalButton(onClick = onOpen)
         if (hasBody) {
             Icon(
                 imageVector = Icons.Default.KeyboardArrowDown,
                 contentDescription = if (isExpanded) "본문 접기" else "본문 펼치기",
                 tint = MeowColors.TextTertiary,
-                modifier = Modifier.size(20.dp).rotate(if (isExpanded) 180f else 0f),
-            )
-        }
-    }
-}
-
-/** 카드 오른쪽 위의 'GitHub에서 열기' 원형 아이콘 버튼. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun OpenInGithubButton(onClick: () -> Unit) {
-    TooltipBox(
-        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-        tooltip = { PlainTooltip { Text("GitHub에서 열기") } },
-        state = rememberTooltipState(),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(30.dp)
-                .clip(CircleShape)
-                .background(MeowColors.Surface)
-                .border(1.dp, MeowColors.GlassBorder, CircleShape)
-                .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                Icons.AutoMirrored.Filled.OpenInNew,
-                contentDescription = "GitHub에서 열기",
-                tint = MeowColors.TextSecondary,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.padding(end = 6.dp).size(20.dp).rotate(if (isExpanded) 180f else 0f),
             )
         }
     }
