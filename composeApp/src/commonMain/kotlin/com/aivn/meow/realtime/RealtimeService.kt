@@ -2,6 +2,7 @@ package com.aivn.meow.realtime
 
 import androidx.compose.ui.graphics.Color
 import com.aivn.meow.config.SupabaseConfig
+import com.aivn.meow.data.isClaudeBot
 import com.aivn.meow.model.CiStatus
 import com.aivn.meow.model.CommentMeta
 import com.aivn.meow.model.CommentSource
@@ -109,6 +110,8 @@ class RealtimeService(private val config: SupabaseConfig) {
  * #84 새 댓글 계열 kind 는 url 이 댓글(리뷰) url 이라 섹션 항목과 같은 url 로 중복이 걸러진다.
  */
 private fun NotifyEventRow.toNotice(): MeowNotice? {
+    // #104 claude[bot] 의 댓글 · 리뷰(와 그 안의 멘션)는 알리지 않는다. 이미 배포된 gh-webhook 이 보낸 행도 여기서 거른다.
+    if (isClaudeBot(actor)) return null
     val repoShort = repoFullName.substringAfter('/', repoFullName)
     val color = colorForRepo(repoShort)
     val authorLogin = actor ?: "unknown"
