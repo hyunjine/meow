@@ -123,12 +123,31 @@ function sameLogin(a: string | null | undefined, b: string | null | undefined): 
 }
 
 /**
+ * #104 Claude GitHub App(`claude[bot]`) 계정인지. login 이 `claude` · `claude[bot]` 이거나,
+ * type 이 Bot 이고 login 이 `claude` 로 시작하면 봇. 앱의 `isClaudeBot` 과 같은 기준.
+ */
+function isClaudeBot(user: { login?: string | null; type?: string | null } | null | undefined): boolean {
+  const login = (user?.login ?? "").trim().toLowerCase();
+  if (!login) return false;
+  if (login === "claude" || login === "claude[bot]") return true;
+  return user?.type === "Bot" && login.startsWith("claude");
+}
+
+/** #104 claude[bot] 이 남긴 댓글 · 리뷰 이벤트인지 (보낸 사람 · 댓글 작성자 · 리뷰 작성자 중 하나라도). */
+function isClaudeBotEvent(event: string, payload: any): boolean {
+  if (event !== "issue_comment" && event !== "pull_request_review") return false;
+  return isClaudeBot(payload.sender) || isClaudeBot(payload.comment?.user) || isClaudeBot(payload.review?.user);
+}
+
+/**
  * 이벤트 하나에서 사람 · 종류별 알림 행을 만든다. 처리 대상이 아니면 빈 배열.
+ * #104 claude[bot] 의 댓글 · 리뷰는 (그 안의 멘션까지) 알리지 않는다.
  * [participants] 는 issue_comment 스레드에 앞서 댓글 · 리뷰를 남긴 login (thread_participants, 소문자).
  * #84 같은 댓글로 멘션된 사람에게는 새 댓글 계열 알림 없이 멘션 한 번만 보낸다.
  */
 function notifyRows(event: string, payload: any, delivery: string, participants: string[] = []): NotifyRow[] {
   const rows: NotifyRow[] = [];
+  if (isClaudeBotEvent(event, payload)) return rows;
   const repo = payload.repository?.full_name as string;
   const add = (
     kind: NotifyKind,

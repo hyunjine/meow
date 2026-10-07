@@ -38,7 +38,11 @@ data class ThreadCommentNode(
 )
 
 @Serializable
-data class CommentAuthor(val login: String)
+data class CommentAuthor(
+    val login: String,
+    /** #104 `User` · `Bot` 등. claude[bot] 판별용. */
+    @SerialName("__typename") val typename: String? = null,
+)
 
 @Serializable
 data class ViewerLogin(val login: String)
@@ -55,16 +59,16 @@ private const val THREAD_SEARCH_SIZE = 30
 private const val THREAD_COMMENTS_SIZE = 20
 
 private const val COMMENTS_FIELD = """
-    comments(last: $THREAD_COMMENTS_SIZE) { nodes { author { login } body bodyText createdAt url } }
+    comments(last: $THREAD_COMMENTS_SIZE) { nodes { author { login __typename } body bodyText createdAt url } }
 """
 
 private const val REVIEWS_FIELD = """
-    reviews(last: $THREAD_COMMENTS_SIZE, states: [COMMENTED]) { nodes { author { login } body bodyText createdAt submittedAt url } }
+    reviews(last: $THREAD_COMMENTS_SIZE, states: [COMMENTED]) { nodes { author { login __typename } body bodyText createdAt submittedAt url } }
 """
 
 /** 참여한 PR 은 리뷰만 남긴 경우도 참여로 보므로(GitHub `commenter:` 검색과 같은 기준) 리뷰 작성자 · 시각만 받는다. */
 private const val JOINED_REVIEWS_FIELD = """
-    reviews(last: $THREAD_COMMENTS_SIZE) { nodes { author { login } createdAt submittedAt url } }
+    reviews(last: $THREAD_COMMENTS_SIZE) { nodes { author { login __typename } createdAt submittedAt url } }
 """
 
 /**
