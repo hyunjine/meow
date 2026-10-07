@@ -13,6 +13,9 @@ import com.aivn.meow.config.readGithubToken
 import com.aivn.meow.github.GithubClient
 import com.aivn.meow.model.CommentSource
 import com.aivn.meow.model.SectionItem
+import com.aivn.meow.notify.DesktopNotice
+import com.aivn.meow.notify.MacNotifier
+import com.aivn.meow.notify.isMacOs
 import com.aivn.meow.schedule.openOutlookCalendar
 import com.aivn.meow.ui.MeowNotice
 import io.ktor.client.engine.cio.CIO
@@ -33,6 +36,12 @@ fun main() {
 private fun runApp() = application {
     val config = loadAppConfig()
     val trayState = rememberTrayState()
+    // macOS 에서는 AWT 트레이 알림이 뜨지 않아 헬퍼 앱(실패 시 osascript)으로 보낸다. 그 외 OS 는 트레이 알림을 쓴다.
+    val notify: (DesktopNotice) -> Unit = if (isMacOs()) {
+        MacNotifier::send
+    } else {
+        { trayState.sendNotification(Notification(it.title, it.message, Notification.Type.Info)) }
+    }
 
     Tray(
         state = trayState,
@@ -55,7 +64,7 @@ private fun runApp() = application {
                 githubClientFactory = { token -> GithubClient({ readGithubToken() ?: token }, CIO) },
                 onOpenUrl = ::openUrlInBrowser,
                 msEngine = CIO,
-                onNotices = { notices -> notices.toNotifications().forEach(trayState::sendNotification) },
+                onNotices = { notices -> notices.toNotifications().forEach(notify) },
                 onOpenOutlookCalendar = { openOutlookCalendar(::openUrlInBrowser) },
             )
         }
@@ -66,11 +75,11 @@ private fun runApp() = application {
 private const val GROUP_THRESHOLD = 4
 private const val COMMENT_PREVIEW_LENGTH = 60
 
-private fun List<MeowNotice>.toNotifications(): List<Notification> {
+private fun List<MeowNotice>.toNotifications(): List<DesktopNotice> {
     if (size < GROUP_THRESHOLD) return map { it.toNotification() }
     // 종류별 개수 요약. 예) 리뷰 요청 2 · 멘션 1 · 내 이슈 댓글 3
     val summary = groupBy { it.kindLabel() }.entries.joinToString(" · ") { (label, list) -> "$label ${list.size}" }
-    return listOf(Notification(title = "새 알림 ${size}건", message = summary, type = Notification.Type.Info))
+    return listOf(DesktopNotice(title = "새 알림 ${size}건", message = summary))
 }
 
 private fun MeowNotice.kindLabel(): String = when (this) {
@@ -86,7 +95,7 @@ private fun MeowNotice.kindLabel(): String = when (this) {
     is MeowNotice.MyPrReviewed -> if (approved) "내 PR 승인" else "내 PR 변경 요청"
 }
 
-private fun MeowNotice.toNotification(): Notification {
+private fun MeowNotice.toNotification(): DesktopNotice {
     val (title, message) = when (this) {
         is MeowNotice.ReviewRequested ->
             "새 PR 리뷰 요청 · ${pr.repo}" to "#${pr.number} · ${pr.title} — @${pr.author}"
@@ -106,7 +115,16 @@ private fun MeowNotice.toNotification(): Notification {
         is MeowNotice.MyPrReviewed ->
             "${if (approved) "내 PR 승인됨" else "내 PR 변경 요청"} · ${item.repo}" to "#${item.number} · ${item.title}"
     }
-    return Notification(title = title, message = message, type = Notification.Type.Info)
+    return DesktopNotice(title = title, message = message, url = url())
+}
+
+/** 알림 클릭 시 열 주소. */
+private fun MeowNotice.url(): String = when (this) {
+    is MeowNotice.ReviewRequested -> pr.url
+    is MeowNotice.Mentioned -> item.url
+    is MeowNotice.NewComment -> item.url
+    is MeowNotice.Assigned -> item.url
+    is MeowNotice.MyPrReviewed -> item.url
 }
 
 /** 새 댓글 항목의 작성자(없으면 detail "@작성자 님의 댓글")와 body(댓글 전문)로 "@작성자: 앞부분". 데이터에 있는 만큼만 붙인다. */
