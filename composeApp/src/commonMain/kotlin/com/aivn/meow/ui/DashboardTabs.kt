@@ -158,7 +158,7 @@ internal fun <T> TwoColumnGrid(
 }
 
 /** 이보다 좁으면 카드 한 장이 너무 좁아져 1열로 바꾼다. */
-private val OneColumnBelow = 640.dp
+private val OneColumnBelow = 820.dp
 
 /** 그리드 자리에 표시하는 빈 상태 · 오류 카드. */
 @Composable
