@@ -41,21 +41,35 @@ class GraphClient(
         expectSuccess = false
     }
 
-    /** [pathOrUrl] 은 `/me/...` 같은 v1.0 상대 경로 또는 `@odata.nextLink` 같은 절대 URL. */
-    suspend fun <T> get(pathOrUrl: String, serializer: KSerializer<T>): T {
-        val response = authorized(HttpMethod.Get, pathOrUrl)
+    /**
+     * [pathOrUrl] 은 `/me/...` 같은 v1.0 상대 경로 또는 `@odata.nextLink` 같은 절대 URL.
+     * [headers] 는 요청에 더 붙일 헤더(예: `Prefer: outlook.timezone=...`).
+     */
+    suspend fun <T> get(
+        pathOrUrl: String,
+        serializer: KSerializer<T>,
+        headers: Map<String, String> = emptyMap(),
+    ): T {
+        val response = authorized(HttpMethod.Get, pathOrUrl) {
+            headers.forEach { (name, value) -> header(name, value) }
+        }
         val text = response.bodyAsText()
         if (!response.status.isSuccess()) throw graphFailure(response.status.value, text)
         return json.decodeFromString(serializer, text)
     }
 
     /** `value` 배열을 `@odata.nextLink` 를 따라가며 [maxPages] 쪽까지 모은다. */
-    suspend fun <T> getAll(path: String, serializer: KSerializer<T>, maxPages: Int = 10): List<T> {
+    suspend fun <T> getAll(
+        path: String,
+        serializer: KSerializer<T>,
+        maxPages: Int = 10,
+        headers: Map<String, String> = emptyMap(),
+    ): List<T> {
         val out = mutableListOf<T>()
         var next: String? = path
         var pages = 0
         while (next != null && pages < maxPages) {
-            val page = get(next, GraphPage.serializer(serializer))
+            val page = get(next, GraphPage.serializer(serializer), headers)
             out += page.value
             next = page.nextLink
             pages++
