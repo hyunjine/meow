@@ -44,7 +44,7 @@ data class CafeteriaUiState(
 fun LocalDate.weekMonday(): LocalDate = minus(dayOfWeek.isoDayNumber - 1, DateTimeUnit.DAY)
 
 /**
- * 구내식당 화면 상태. App 수준에서 만들어 화면 전환에도 받아 둔 주를 유지한다.
+ * 구내 식당 화면 상태. App 수준에서 만들어 화면 전환에도 받아 둔 주를 유지한다.
  * 평일 11:00–13:30(KST)에는 이번 주를 5분마다 다시 받아 그날 중식 게시물을 자동으로 띄운다.
  */
 class CafeteriaViewModel(

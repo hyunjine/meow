@@ -76,7 +76,7 @@ internal sealed interface LightboxTarget {
     data class Weekly(val post: WeeklyMenuPost, val monday: LocalDate) : LightboxTarget
 }
 
-/** 구내식당 화면: 카카오톡 채널의 주간 메뉴표와 요일별 '오늘의 중식' 사진. */
+/** 구내 식당 화면: 카카오톡 채널의 주간 메뉴표와 요일별 '오늘의 중식' 사진. */
 @Composable
 fun CafeteriaScreen(
     viewModel: CafeteriaViewModel,
@@ -101,8 +101,8 @@ fun CafeteriaScreen(
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 PageHeader(
-                    title = "구내식당",
-                    subtitle = "kt대덕2연구센터 구내식당 · 카카오톡 채널",
+                    title = "구내 식당",
+                    subtitle = "kt대덕2연구센터 구내 식당 · 카카오톡 채널",
                     syncLabel = if (state.lastSyncFailed) "마지막 동기화 · 실패" else "마지막 동기화",
                     syncValue = state.lastSync?.let { formatSyncTime(it, Clock.System.now()) } ?: "아직 동기화 안 함",
                     syncOk = !state.lastSyncFailed,
