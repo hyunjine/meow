@@ -13,6 +13,7 @@ import com.aivn.meow.config.readGithubToken
 import com.aivn.meow.github.GithubClient
 import com.aivn.meow.model.CommentSource
 import com.aivn.meow.model.SectionItem
+import com.aivn.meow.schedule.openOutlookCalendar
 import com.aivn.meow.ui.MeowNotice
 import io.ktor.client.engine.cio.CIO
 import java.awt.Desktop
@@ -55,6 +56,7 @@ private fun runApp() = application {
                 onOpenUrl = ::openUrlInBrowser,
                 msEngine = CIO,
                 onNotices = { notices -> notices.toNotifications().forEach(trayState::sendNotification) },
+                onOpenOutlookCalendar = { openOutlookCalendar(::openUrlInBrowser) },
             )
         }
     }

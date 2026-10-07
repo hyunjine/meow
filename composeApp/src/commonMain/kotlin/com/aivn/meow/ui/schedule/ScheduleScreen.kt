@@ -28,6 +28,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -51,6 +55,7 @@ import com.aivn.meow.ui.common.PageHorizontalPadding
 import com.aivn.meow.ui.common.PageMaxWidth
 import com.aivn.meow.ui.common.PageVerticalPadding
 import com.aivn.meow.ui.weekly.formatSyncTime
+import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
@@ -63,8 +68,15 @@ private val DayLetters = listOf("월", "화", "수", "목", "금")
 
 /** 일정 화면: TeamAIVN 공용 캘린더에서 이번 주 월~금 부재자(휴가 · 반차 · 출장 …)를 요일 칸으로 보여 준다. */
 @Composable
-fun ScheduleScreen(viewModel: ScheduleViewModel, modifier: Modifier = Modifier) {
+fun ScheduleScreen(
+    viewModel: ScheduleViewModel,
+    onOpenOutlookCalendar: suspend () -> OutlookOpenResult,
+    modifier: Modifier = Modifier,
+) {
     val state by viewModel.state.collectAsState()
+    val scope = rememberCoroutineScope()
+    // 손쉬운 사용 권한이 없어 Outlook 앱만 켜졌을 때 한 번 보여 주는 안내
+    var showPermissionHint by remember { mutableStateOf(false) }
     val auth by viewModel.auth.state.collectAsState()
     val connected = auth is MsAuthState.Connected
 
@@ -102,7 +114,21 @@ fun ScheduleScreen(viewModel: ScheduleViewModel, modifier: Modifier = Modifier) 
                 onPrevious = viewModel::previousWeek,
                 onNext = viewModel::nextWeek,
                 onThisWeek = viewModel::thisWeek,
+                onOpenOutlook = {
+                    scope.launch {
+                        if (onOpenOutlookCalendar() == OutlookOpenResult.AppOnlyNeedsPermission) showPermissionHint = true
+                    }
+                },
             )
+            if (showPermissionHint) {
+                Text(
+                    text = "일정 탭으로 바로 가려면 시스템 설정 › 개인정보 보호 및 보안 › 손쉬운 사용에서 meow(또는 java)를 허용해 주세요",
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MeowColors.TextTertiary,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.End,
+                )
+            }
             when (val content = state.content) {
                 null, ScheduleContent.Loading -> LoadingCard()
                 ScheduleContent.CalendarNotFound -> EmptyStateCard(
@@ -120,7 +146,13 @@ fun ScheduleScreen(viewModel: ScheduleViewModel, modifier: Modifier = Modifier) 
 // ---- 주 이동 ----
 
 @Composable
-private fun WeekNavigator(monday: LocalDate, onPrevious: () -> Unit, onNext: () -> Unit, onThisWeek: () -> Unit) {
+private fun WeekNavigator(
+    monday: LocalDate,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onThisWeek: () -> Unit,
+    onOpenOutlook: () -> Unit,
+) {
     val friday = monday.plus(4, DateTimeUnit.DAY)
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -142,20 +174,26 @@ private fun WeekNavigator(monday: LocalDate, onPrevious: () -> Unit, onNext: () 
         )
         ArrowButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, "다음 주", onNext)
         Spacer(Modifier.weight(1f))
-        val shape = RoundedCornerShape(10.dp)
-        Text(
-            text = "이번 주",
-            modifier = Modifier
-                .clip(shape)
-                .background(Color.White)
-                .border(1.dp, CardBorder, shape)
-                .clickable(onClick = onThisWeek)
-                .padding(horizontal = 14.dp, vertical = 8.dp),
-            color = MeowColors.TextPrimary,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
+        NavTextButton("이번 주", onThisWeek)
+        NavTextButton("Outlook 일정 ↗", onOpenOutlook)
     }
+}
+
+@Composable
+private fun NavTextButton(text: String, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(10.dp)
+    Text(
+        text = text,
+        modifier = Modifier
+            .clip(shape)
+            .background(Color.White)
+            .border(1.dp, CardBorder, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        color = MeowColors.TextPrimary,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+    )
 }
 
 @Composable

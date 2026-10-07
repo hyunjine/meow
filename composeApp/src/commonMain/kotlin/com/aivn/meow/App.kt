@@ -44,6 +44,8 @@ import com.aivn.meow.ui.cafeteria.CafeteriaScreen
 import com.aivn.meow.ui.cafeteria.CafeteriaViewModel
 import com.aivn.meow.ui.nav.AppDrawer
 import com.aivn.meow.ui.nav.AppScreen
+import com.aivn.meow.ui.schedule.OUTLOOK_WEB_CALENDAR_URL
+import com.aivn.meow.ui.schedule.OutlookOpenResult
 import com.aivn.meow.ui.schedule.ScheduleScreen
 import com.aivn.meow.ui.schedule.ScheduleViewModel
 import com.aivn.meow.ui.sections.DashboardSections
@@ -60,6 +62,11 @@ fun App(
     onOpenUrl: (String) -> Unit,
     msEngine: HttpClientEngineFactory<*>,
     onNotices: (List<MeowNotice>) -> Unit = {},
+    // 일정 화면의 "Outlook 일정 ↗". 플랫폼 구현이 없으면 웹 캘린더를 연다.
+    onOpenOutlookCalendar: suspend () -> OutlookOpenResult = {
+        onOpenUrl(OUTLOOK_WEB_CALENDAR_URL)
+        OutlookOpenResult.Browser
+    },
 ) {
     val scope = rememberCoroutineScope()
     val viewModel = remember(config.token) {
@@ -140,7 +147,7 @@ fun App(
                             onToggleFavorite = viewModel::toggleFavorite,
                         )
                         AppScreen.WEEKLY_REPORT -> WeeklyReportScreen(viewModel = weeklyViewModel, onOpenUrl = onOpenUrl)
-                        AppScreen.SCHEDULE -> ScheduleScreen(viewModel = scheduleViewModel)
+                        AppScreen.SCHEDULE -> ScheduleScreen(viewModel = scheduleViewModel, onOpenOutlookCalendar = onOpenOutlookCalendar)
                         AppScreen.CAFETERIA -> CafeteriaScreen(viewModel = cafeteriaViewModel, onOpenUrl = onOpenUrl)
                     }
                 }
