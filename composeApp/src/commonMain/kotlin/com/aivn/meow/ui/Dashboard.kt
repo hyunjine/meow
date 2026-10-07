@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -53,9 +52,8 @@ import com.aivn.meow.model.SectionItem
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
 import com.aivn.meow.ui.common.PageHeader
-import com.aivn.meow.ui.common.PageHorizontalPadding
-import com.aivn.meow.ui.common.PageMaxWidth
-import com.aivn.meow.ui.common.PageVerticalPadding
+import com.aivn.meow.ui.common.pageBodyWidth
+import com.aivn.meow.ui.common.pageContent
 import com.aivn.meow.ui.sections.SectionRow
 import com.aivn.meow.util.formatKst
 import com.aivn.meow.util.formatSyncLabel
@@ -93,7 +91,7 @@ private fun DashboardContent(
     onToggleFavorite: (String) -> Unit,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val bodyWidth = minOf(maxWidth - PageHorizontalPadding * 2, PageMaxWidth)
+        val bodyWidth = pageBodyWidth(maxWidth)
         DashboardBody(
             state = state,
             // 본문이 좁으면 사이드바를 숨기고 메인만 보여준다
@@ -309,10 +307,7 @@ private fun DashboardBody(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Column(
-                modifier = Modifier
-                    .padding(horizontal = PageHorizontalPadding, vertical = PageVerticalPadding)
-                    .fillMaxWidth()
-                    .widthIn(max = PageMaxWidth),
+                modifier = Modifier.pageContent(),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 PageHeader(

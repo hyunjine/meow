@@ -60,7 +60,8 @@ val AppDrawerItems = listOf(
 )
 
 private val DrawerBackground = Color(0xFF2B2F55)
-private val DrawerWidth = 256.dp
+/** 드로워 폭. 각 화면 오른쪽 여백도 이 값을 쓴다. */
+val DrawerWidth = 256.dp
 
 /** 창 왼쪽에 항상 열린 메뉴 드로워. 화면별 정보(개수 · 동기화 상태)는 두지 않는다. */
 @Composable
