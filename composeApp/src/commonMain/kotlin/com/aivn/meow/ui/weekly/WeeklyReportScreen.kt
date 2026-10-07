@@ -81,6 +81,8 @@ fun WeeklyReportScreen(
     val auth by viewModel.auth.state.collectAsState()
     var confirming by remember { mutableStateOf(false) }
     val connected = auth as? MsAuthState.Connected
+    // 앱을 켜고 계정을 다시 연결하는 동안에도 보관해 둔 결과는 바로 보여 준다.
+    val showCached = auth is MsAuthState.Connecting && state.lastSync != null && state.reportName != null
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(
@@ -108,7 +110,7 @@ fun WeeklyReportScreen(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 when {
-                    connected == null -> ConnectCard(auth = auth, onConnect = viewModel::signIn)
+                    connected == null && !showCached -> ConnectCard(auth = auth, onConnect = viewModel::signIn)
                     state.reportName == null || state.editingName -> ReportNameCard(
                         initialName = state.reportName,
                         onSave = viewModel::saveReportName,
@@ -120,6 +122,7 @@ fun WeeklyReportScreen(
                         viewModel = viewModel,
                         onOpenUrl = onOpenUrl,
                         onPublish = { confirming = true },
+                        canWrite = connected != null,
                     )
                 }
                 if (connected != null) {
@@ -277,6 +280,7 @@ private fun ReportBody(
     viewModel: WeeklyReportViewModel,
     onOpenUrl: (String) -> Unit,
     onPublish: () -> Unit,
+    canWrite: Boolean,
 ) {
     val content = state.content
     val showWeeks = content is WeeklyContent.Found || content is WeeklyContent.NotFound
@@ -347,6 +351,7 @@ private fun ReportBody(
                     onPublish = onPublish,
                     onOpenUrl = onOpenUrl,
                     onChangeName = viewModel::startEditingName,
+                    canWrite = canWrite,
                 )
             }
         }
@@ -437,6 +442,7 @@ private fun DocumentCard(
     onPublish: () -> Unit,
     onOpenUrl: (String) -> Unit,
     onChangeName: () -> Unit,
+    canWrite: Boolean,
 ) {
     val row = found.row
     WeeklyCard(modifier = Modifier.fillMaxWidth()) {
@@ -500,8 +506,8 @@ private fun DocumentCard(
                     fontWeight = FontWeight.SemiBold,
                 )
             }
-            OutlineButton(text = "초안 다시 생성", onClick = onRegenerate, enabled = !found.drafting && !found.saving, loading = found.drafting)
-            BrandButton(text = "문서에 반영", onClick = onPublish, enabled = row.found && !found.saving && !found.drafting, loading = found.saving)
+            OutlineButton(text = "초안 다시 생성", onClick = onRegenerate, enabled = canWrite && !found.drafting && !found.saving, loading = found.drafting)
+            BrandButton(text = "문서에 반영", onClick = onPublish, enabled = canWrite && row.found && !found.saving && !found.drafting, loading = found.saving)
         }
     }
 }

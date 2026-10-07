@@ -105,6 +105,12 @@ class ScheduleViewModel(
     /** 보고 있는 주를 다시 불러온다. */
     fun sync() = load(_state.value.weekStart, force = true)
 
+    /** 드로워로 화면에 들어올 때: 불러오는 중이거나 연결 안 됐으면 건너뛴다. */
+    fun syncIfIdle() {
+        if (_state.value.syncing) return
+        sync()
+    }
+
     private fun showWeek(monday: LocalDate) {
         _state.update { it.copy(weekStart = monday) }
         if (_state.value.weeks[monday].let { it == null || it is ScheduleContent.Failed }) load(monday)

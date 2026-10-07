@@ -115,6 +115,14 @@ class DashboardViewModel(
         loadOrgRepos()
     }
 
+    /** 드로워로 화면에 들어올 때: 이미 불러오는 중이면 건너뛰고, 아니면 동기화 버튼과 같이 새로 불러온다. */
+    fun syncIfIdle() {
+        val s = _state.value
+        if (s is DashboardUiState.Loading || (s is DashboardUiState.Loaded && s.refreshing)) return
+        if (manualJob?.isActive == true) return
+        refresh()
+    }
+
     fun toggleFavorite(repo: String) {
         val current = _favorites.value
         _favorites.value = if (repo in current) current - repo else current + repo
