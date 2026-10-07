@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -49,9 +48,7 @@ import com.aivn.meow.cafeteria.WeeklyMenuPost
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.ui.common.OpenOriginalButton
 import com.aivn.meow.ui.common.PageHeader
-import com.aivn.meow.ui.common.PageHorizontalPadding
-import com.aivn.meow.ui.common.PageMaxWidth
-import com.aivn.meow.ui.common.PageVerticalPadding
+import com.aivn.meow.ui.common.pageContent
 import com.aivn.meow.ui.weekly.formatSyncTime
 import com.aivn.meow.weekly.isoWeekNumber
 import kotlinx.datetime.Clock
@@ -94,10 +91,7 @@ fun CafeteriaScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Column(
-                modifier = Modifier
-                    .padding(horizontal = PageHorizontalPadding, vertical = PageVerticalPadding)
-                    .fillMaxWidth()
-                    .widthIn(max = PageMaxWidth),
+                modifier = Modifier.pageContent(),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 PageHeader(

@@ -59,9 +59,7 @@ import com.aivn.meow.theme.glassSurface
 import com.aivn.meow.ui.EmptyStateCard
 import com.aivn.meow.ui.common.OpenOriginalButton
 import com.aivn.meow.ui.common.PageHeader
-import com.aivn.meow.ui.common.PageHorizontalPadding
-import com.aivn.meow.ui.common.PageMaxWidth
-import com.aivn.meow.ui.common.PageVerticalPadding
+import com.aivn.meow.ui.common.pageContent
 import com.aivn.meow.weekly.MyWeeklyRow
 import com.aivn.meow.weekly.WeekDoc
 import com.aivn.meow.weekly.WeekDocSource
@@ -91,10 +89,7 @@ fun WeeklyReportScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Column(
-                modifier = Modifier
-                    .padding(horizontal = PageHorizontalPadding, vertical = PageVerticalPadding)
-                    .fillMaxWidth()
-                    .widthIn(max = PageMaxWidth),
+                modifier = Modifier.pageContent(),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 val sync = state.lastSync
