@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -60,6 +61,7 @@ import com.aivn.meow.ui.common.PageHeader
 import com.aivn.meow.ui.common.PageHorizontalPadding
 import com.aivn.meow.ui.common.PageMaxWidth
 import com.aivn.meow.ui.common.PageVerticalPadding
+import com.aivn.meow.weekly.MyWeeklyRow
 import com.aivn.meow.weekly.WeekDoc
 import com.aivn.meow.weekly.WeekDocSource
 import kotlinx.datetime.Clock
@@ -267,10 +269,24 @@ private fun ReportBody(
     val showWeeks = content is WeeklyContent.Found || content is WeeklyContent.NotFound
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
         if (showWeeks) {
-            WeekList(state = state, onOpenUrl = onOpenUrl, modifier = Modifier.width(240.dp))
+            WeekList(
+                state = state,
+                onSelectPast = viewModel::selectPastWeek,
+                onSelectThisWeek = viewModel::clearPastWeek,
+                modifier = Modifier.width(240.dp),
+            )
         }
+        val selectedPast = state.selectedPast.takeIf { showWeeks }
         Box(modifier = Modifier.weight(1f)) {
-            when (content) {
+            if (selectedPast != null) {
+                PastWeekCard(
+                    selection = selectedPast,
+                    row = state.pastRows[selectedPast.doc.itemId],
+                    onOpenUrl = onOpenUrl,
+                    onRetry = viewModel::retryPastWeek,
+                    onBack = viewModel::clearPastWeek,
+                )
+            } else when (content) {
                 WeeklyContent.Idle -> EmptyStateCard(
                     title = if (state.syncing) "이번 주 문서를 찾는 중…" else "아직 동기화 안 함",
                     hint = "오른쪽 위 동기화를 누르면 이번 주 문서를 찾아 실적 초안을 만들어 드려요",
@@ -328,13 +344,19 @@ private fun ReportBody(
 private data class WeekItem(val week: Int, val doc: WeekDoc?)
 
 @Composable
-private fun WeekList(state: WeeklyUiState, onOpenUrl: (String) -> Unit, modifier: Modifier = Modifier) {
+private fun WeekList(
+    state: WeeklyUiState,
+    onSelectPast: (WeekDoc) -> Unit,
+    onSelectThisWeek: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val items = buildList {
         if (state.weeks.none { it.week == state.currentWeek }) add(WeekItem(state.currentWeek, null))
         state.weeks.forEach { add(WeekItem(it.week, it)) }
     }.take(WeeklyReportViewModel.WEEK_LIST_SIZE)
     val found = state.content as? WeeklyContent.Found
     val year = Clock.System.todayIn(TimeZone.of("Asia/Seoul")).year
+    val selectedId = state.selectedPast?.doc?.itemId
     Column(
         modifier = modifier.glassSurface(corner = 20.dp).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -354,13 +376,17 @@ private fun WeekList(state: WeeklyUiState, onOpenUrl: (String) -> Unit, modifier
             }
             val monday = isoWeekMonday(year, item.week)
             val friday = monday.plus(4, DateTimeUnit.DAY)
-            val url = item.doc?.webUrl
+            val doc = item.doc
+            // 고른 지난 주차가 있으면 그 줄을, 없으면 이번 주 줄을 강조한다.
+            val highlighted = if (selectedId != null) !isThisWeek && doc?.itemId == selectedId else isThisWeek
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(if (isThisWeek) MeowColors.BrandSubtle.copy(alpha = 0.08f) else Color.Transparent)
-                    .clickable(enabled = !isThisWeek && url != null) { url?.let(onOpenUrl) }
+                    .background(if (highlighted) MeowColors.BrandSubtle.copy(alpha = 0.08f) else Color.Transparent)
+                    .clickable(enabled = if (isThisWeek) selectedId != null else doc != null) {
+                        if (isThisWeek) onSelectThisWeek() else doc?.let(onSelectPast)
+                    }
                     .padding(horizontal = 12.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -463,6 +489,103 @@ private fun DocumentCard(
             }
             OutlineButton(text = "초안 다시 생성", onClick = onRegenerate, enabled = !found.drafting && !found.saving, loading = found.drafting)
             BrandButton(text = "문서에 반영", onClick = onPublish, enabled = row.found && !found.saving && !found.drafting, loading = found.saving)
+        }
+    }
+}
+
+/** 고른 지난 주차의 내 행(실적 · 계획)을 읽기 전용으로 보여 준다. */
+@Composable
+private fun PastWeekCard(
+    selection: PastWeekSelection,
+    row: MyWeeklyRow?,
+    onOpenUrl: (String) -> Unit,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+) {
+    val doc = selection.doc
+    val monday = isoWeekMonday(Clock.System.todayIn(TimeZone.of("Asia/Seoul")).year, doc.week)
+    val friday = monday.plus(4, DateTimeUnit.DAY)
+    WeeklyCard(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "Week ${doc.week} · ${monday.monthNumber}/${monday.dayOfMonth} – ${friday.monthNumber}/${friday.dayOfMonth}",
+                modifier = Modifier.weight(1f),
+                color = MeowColors.TextPrimary,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = "지난 주차 · 읽기 전용",
+                color = MeowColors.TextTertiary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+        Text(
+            text = row?.header?.title ?: doc.name.removeSuffix(".docx"),
+            color = MeowColors.TextTertiary,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+        )
+        when {
+            row != null && (row.results.isNotEmpty() || row.plans.isNotEmpty()) -> {
+                val tableShape = RoundedCornerShape(12.dp)
+                Column(modifier = Modifier.fillMaxWidth().clip(tableShape).border(1.dp, MeowColors.GlassBorder, tableShape)) {
+                    ReadOnlyCellRow(label = row.header.result.label, lines = row.results)
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(MeowColors.GlassBorder))
+                    ReadOnlyCellRow(label = row.header.plan.label, lines = row.plans)
+                }
+            }
+            row != null -> Text(
+                text = "이 주에는 작성한 내용이 없어요",
+                color = MeowColors.TextSecondary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+            )
+            selection.error != null -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(text = selection.error, color = MeowColors.Error, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                OutlineButton(text = "다시 시도", onClick = onRetry)
+            }
+            else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = MeowColors.Brand, strokeWidth = 2.dp)
+                Text("문서를 읽는 중이에요…", color = MeowColors.TextTertiary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            LinkText("이번 주로 돌아가기", onClick = onBack, fontSize = 12.sp)
+            Spacer(Modifier.weight(1f))
+            doc.webUrl?.let { url -> OutlineButton(text = "원본 보기 ↗", onClick = { onOpenUrl(url) }) }
+        }
+    }
+}
+
+@Composable
+private fun ReadOnlyCellRow(label: String, lines: List<String>) {
+    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        Box(
+            modifier = Modifier
+                .width(200.dp)
+                .fillMaxHeight()
+                .background(MeowColors.Background)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+        ) {
+            Text(text = label, color = MeowColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        }
+        Box(Modifier.width(1.dp).fillMaxHeight().background(MeowColors.GlassBorder))
+        Box(modifier = Modifier.weight(1f).heightIn(min = 44.dp).padding(horizontal = 14.dp, vertical = 12.dp)) {
+            if (lines.isEmpty()) {
+                Text("—", color = MeowColors.TextTertiary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            } else {
+                SelectionContainer {
+                    Text(
+                        text = lines.joinToString("\n"),
+                        color = MeowColors.TextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        lineHeight = 21.sp,
+                    )
+                }
+            }
         }
     }
 }
