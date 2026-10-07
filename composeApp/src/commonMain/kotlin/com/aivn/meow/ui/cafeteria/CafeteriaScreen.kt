@@ -400,12 +400,12 @@ internal fun KakaoImage(
     contentScale: ContentScale = ContentScale.Crop,
     placeholderUrls: List<String> = emptyList(),
 ) {
-    val result by produceState<ImageResult>(
-        initialValue = peekCachedImage(url)?.let { ImageResult.Loaded(it) } ?: ImageResult.Loading(
-            placeholderUrls.firstNotNullOfOrNull { peekCachedImage(it) },
-        ),
-        url,
-    ) {
+    fun initial(): ImageResult = peekCachedImage(url)?.let { ImageResult.Loaded(it) } ?: ImageResult.Loading(
+        placeholderUrls.firstNotNullOfOrNull { peekCachedImage(it) },
+    )
+    val result by produceState(initialValue = initial(), url) {
+        // url 이 바뀌면 produceState 는 이전 값을 들고 다시 시작하므로, 새 url 기준으로 먼저 되돌린다.
+        value = initial()
         if (value is ImageResult.Loaded) return@produceState
         value = loadCachedImage(url)?.let { ImageResult.Loaded(it) } ?: ImageResult.Failed
     }
