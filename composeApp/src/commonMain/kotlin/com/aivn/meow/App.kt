@@ -31,6 +31,7 @@ import com.aivn.meow.model.PullRequest
 import com.aivn.meow.ms.GraphClient
 import com.aivn.meow.ms.MsAuth
 import com.aivn.meow.realtime.RealtimeService
+import com.aivn.meow.schedule.ScheduleRepository
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.MeowTheme
 import com.aivn.meow.ui.Dashboard
@@ -39,6 +40,8 @@ import com.aivn.meow.ui.DashboardViewModel
 import com.aivn.meow.ui.MeowNotice
 import com.aivn.meow.ui.nav.AppDrawer
 import com.aivn.meow.ui.nav.AppScreen
+import com.aivn.meow.ui.schedule.ScheduleScreen
+import com.aivn.meow.ui.schedule.ScheduleViewModel
 import com.aivn.meow.ui.sections.DashboardSections
 import com.aivn.meow.ui.weekly.WeeklyReportScreen
 import com.aivn.meow.ui.weekly.WeeklyReportViewModel
@@ -67,6 +70,14 @@ fun App(
             auth = auth,
             repository = WeeklyReportRepository(GraphClient(auth, msEngine)),
             draftBuilder = WeeklyDraftBuilder(githubClientFactory(config.token), config.org),
+            scope = scope,
+        )
+    }
+    // 일정 화면도 주간 보고와 같은 Microsoft 계정(MsAuth)을 쓴다.
+    val scheduleViewModel = remember(weeklyViewModel) {
+        ScheduleViewModel(
+            auth = weeklyViewModel.auth,
+            repository = ScheduleRepository(GraphClient(weeklyViewModel.auth, msEngine)),
             scope = scope,
         )
     }
@@ -120,6 +131,7 @@ fun App(
                             onToggleFavorite = viewModel::toggleFavorite,
                         )
                         AppScreen.WEEKLY_REPORT -> WeeklyReportScreen(viewModel = weeklyViewModel, onOpenUrl = onOpenUrl)
+                        AppScreen.SCHEDULE -> ScheduleScreen(viewModel = scheduleViewModel)
                     }
                 }
             }
