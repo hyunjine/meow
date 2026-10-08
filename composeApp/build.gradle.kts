@@ -20,6 +20,8 @@ kotlin {
             implementation(libs.compose.material.icons.extended)
             implementation(libs.compose.ui)
             implementation(libs.compose.components.resources)
+            implementation(libs.kyant.backdrop)
+            implementation(libs.kyant.shapes)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.datetime)
             implementation(libs.supabase.realtime)
