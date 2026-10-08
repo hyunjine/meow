@@ -64,6 +64,8 @@ import com.aivn.meow.ui.common.MeowType
 import com.aivn.meow.ui.common.PageHeader
 import com.aivn.meow.ui.common.pageBodyWidth
 import com.aivn.meow.ui.common.pageContent
+import com.aivn.meow.ui.pr.MergeFooter
+import com.aivn.meow.ui.sections.MyPrStatusSection
 import com.aivn.meow.ui.sections.SectionRow
 import com.aivn.meow.util.formatKst
 import com.aivn.meow.util.formatSyncLabel
@@ -485,6 +487,12 @@ private fun SectionTabContent(
                     onOpen = { onOpenUrl(item.url) },
                     modifier = cellModifier,
                     showDiscussion = section.showsDiscussion,
+                    // #130 내 PR 현황 카드에만 머지 바
+                    footer = if (section.id == MyPrStatusSection.id) {
+                        { MergeFooter(prUrl = item.url, prNumber = item.number, prTitle = item.title) }
+                    } else {
+                        null
+                    },
                 )
             }
         }

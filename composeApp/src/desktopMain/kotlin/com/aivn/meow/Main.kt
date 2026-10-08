@@ -31,6 +31,8 @@ fun main() {
     // 메뉴 바 아이콘을 macOS 템플릿 이미지로 표시해 다크/라이트 메뉴 바 모두에서 보이게 한다 (JDK 21+ 지원).
     // build.gradle.kts 의 jvmArgs 에도 넣었지만, 다른 실행 경로를 위해 Tray 생성 전에 한 번 더 지정한다.
     System.setProperty("apple.awt.enableTemplateImages", "true")
+    // 메뉴 바 앱 이름 (.app 없이 실행하면 기본값이 메인 클래스 이름 MainKt). AWT 초기화 전에 지정해야 한다.
+    System.setProperty("apple.awt.application.name", "Meow")
     runApp()
 }
 

@@ -108,7 +108,7 @@ internal fun SectionRow(
 
             CardActions(
                 onOpen = onOpen,
-                hasBody = showDiscussion || !item.body.isNullOrBlank(),
+                hasBody = showDiscussion || footer != null || !item.body.isNullOrBlank(),
                 isExpanded = isExpanded,
             )
         },

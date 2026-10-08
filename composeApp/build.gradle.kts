@@ -65,6 +65,8 @@ compose.desktop {
         mainClass = "com.aivn.meow.MainKt"
         // 메뉴 바(트레이) 아이콘을 템플릿 이미지로 — 다크/라이트 메뉴 바에 맞춰 색이 바뀐다 (JDK 21+).
         jvmArgs += listOf("-Dapple.awt.enableTemplateImages=true")
+        // ./gradlew run 처럼 .app 없이 실행해도 Dock 에 java, 메뉴 바에 MainKt 대신 Meow 로 보이게 한다.
+        jvmArgs += listOf("-Xdock:name=Meow", "-Dapple.awt.application.name=Meow")
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg)
