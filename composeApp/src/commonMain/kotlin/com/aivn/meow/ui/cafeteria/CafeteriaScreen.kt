@@ -4,14 +4,13 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,8 +34,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -47,6 +55,7 @@ import com.aivn.meow.cafeteria.CafeteriaWeek
 import com.aivn.meow.cafeteria.KST
 import com.aivn.meow.cafeteria.WeeklyMenuPost
 import com.aivn.meow.theme.MeowColors
+import com.aivn.meow.ui.common.GlassSegmentedTabs
 import com.aivn.meow.ui.common.OpenOriginalButton
 import com.aivn.meow.ui.common.PageHeader
 import com.aivn.meow.ui.common.pageContent
@@ -56,6 +65,7 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.daysUntil
 import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
@@ -67,6 +77,7 @@ private val Muted = Color(0xFF9AA0BD)
 private val HolidayBg = Color(0xFFFDF1EF)
 private val HolidayText = Color(0xFFD9534F)
 private val SoftBg = Color(0xFFF5F6FA)
+private val TodayBg = Color(0xFFF0F3FF)
 
 /** 열려 있는 라이트박스. */
 internal sealed interface LightboxTarget {
@@ -74,7 +85,7 @@ internal sealed interface LightboxTarget {
     data class Weekly(val post: WeeklyMenuPost, val monday: LocalDate) : LightboxTarget
 }
 
-/** 구내 식당 화면: 카카오톡 채널의 주간 메뉴표와 요일별 '오늘의 중식' 사진. */
+/** 구내 식당 화면: 카카오톡 채널의 주간 메뉴표와, 요일 탭으로 고르는 '오늘의 중식' 사진. */
 @Composable
 fun CafeteriaScreen(
     viewModel: CafeteriaViewModel,
@@ -83,10 +94,30 @@ fun CafeteriaScreen(
 ) {
     val state by viewModel.state.collectAsState()
     var lightbox by remember { mutableStateOf<LightboxTarget?>(null) }
+    // 보고 있는 주의 선택 요일(0=월 … 4=금). 주를 바꾸면 오늘(이번 주) 또는 월요일로 되돌리고, 자동 새로고침에는 유지한다.
+    var selectedDay by remember(state.selectedMonday) {
+        mutableStateOf(defaultDayIndex(state.selectedMonday, state.today))
+    }
+    val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(viewModel) { viewModel.onShown() }
+    // 처음 보일 때 · 라이트박스를 닫은 뒤 ←/→ 로 요일을 바꿀 수 있게 포커스를 가져온다
+    LaunchedEffect(lightbox == null) { if (lightbox == null) focusRequester.requestFocus() }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .focusRequester(focusRequester)
+            .focusable()
+            .onKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown || lightbox != null) return@onKeyEvent false
+                when (event.key) {
+                    Key.DirectionLeft -> { selectedDay = (selectedDay - 1).coerceAtLeast(0); true }
+                    Key.DirectionRight -> { selectedDay = (selectedDay + 1).coerceAtMost(WEEKDAY_COUNT - 1); true }
+                    else -> false
+                }
+            },
+    ) {
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -117,6 +148,8 @@ fun CafeteriaScreen(
                     week != null -> WeekContent(
                         week = week,
                         today = state.today,
+                        selectedDay = selectedDay,
+                        onSelectDay = { selectedDay = it },
                         onOpenUrl = onOpenUrl,
                         onOpenLightbox = { lightbox = it },
                     )
@@ -196,6 +229,8 @@ private fun NavButton(text: String, onClick: () -> Unit, square: Boolean) {
 private fun WeekContent(
     week: CafeteriaWeek,
     today: LocalDate,
+    selectedDay: Int,
+    onSelectDay: (Int) -> Unit,
     onOpenUrl: (String) -> Unit,
     onOpenLightbox: (LightboxTarget) -> Unit,
 ) {
@@ -206,14 +241,21 @@ private fun WeekContent(
             onOpen = { post -> onOpenLightbox(LightboxTarget.Weekly(post, week.monday)) },
         )
     }
-    val dayCards = @Composable {
-        week.days.forEach { day ->
-            DayCard(
-                day = day,
-                today = today,
-                modifier = Modifier.fillMaxWidth(),
-                onOpenPhoto = { index -> onOpenLightbox(LightboxTarget.Lunch(day, index)) },
+    val dayColumn = @Composable { modifier: Modifier ->
+        Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            GlassSegmentedTabs(
+                labels = week.days.map { it.date.dayLetter() },
+                selectedIndex = selectedDay,
+                onSelect = onSelectDay,
             )
+            week.days.getOrNull(selectedDay)?.let { day ->
+                DayCard(
+                    day = day,
+                    today = today,
+                    modifier = Modifier.fillMaxWidth(),
+                    onOpenPhoto = { index -> onOpenLightbox(LightboxTarget.Lunch(day, index)) },
+                )
+            }
         }
     }
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
@@ -224,28 +266,32 @@ private fun WeekContent(
                 verticalAlignment = Alignment.Top,
             ) {
                 Box(Modifier.weight(WeeklyColumnWeight)) { weeklyCard() }
-                Column(
-                    modifier = Modifier.weight(DayColumnWeight),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) { dayCards() }
+                dayColumn(Modifier.weight(DayColumnWeight))
             }
         } else {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 weeklyCard()
-                Spacer(Modifier.height(6.dp))
-                dayCards()
+                dayColumn(Modifier.fillMaxWidth())
             }
         }
     }
 }
 
-/** 주간 메뉴표 옆에 요일 카드 열을 둘 수 있는 최소 본문 폭. 이보다 좁으면 세로로 쌓는다. */
+private const val WEEKDAY_COUNT = 5
+
+/** 보고 있는 주에 오늘이 있으면 오늘, 아니면 월요일. */
+internal fun defaultDayIndex(monday: LocalDate, today: LocalDate): Int {
+    val offset = monday.daysUntil(today)
+    return if (offset in 0 until WEEKDAY_COUNT) offset else 0
+}
+
+/** 주간 메뉴표 옆에 요일 열을 둘 수 있는 최소 본문 폭. 이보다 좁으면 세로로 쌓는다. */
 private val SideLayoutMinWidth = 760.dp
 
-/** 주간 메뉴표 : 요일 카드 열 폭 비율 (Figma 632 : 240). 창이 넓어지면 둘이 같은 비율로 커진다. */
+/** 주간 메뉴표 : 요일 열 폭 비율 (Figma 632 : 240). 창이 넓어지면 둘이 같은 비율로 커진다. */
 private const val WeeklyColumnWeight = 0.72f
 private const val DayColumnWeight = 0.28f
 
@@ -301,16 +347,10 @@ private fun DayCard(day: CafeteriaDay, today: LocalDate, modifier: Modifier, onO
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = day.date.dayLetter(),
+                text = "${day.date.monthNumber}월 ${day.date.dayOfMonth}일 ${day.date.dayLetter()}요일 중식",
                 color = if (isToday) MeowColors.Brand else MeowColors.TextPrimary,
-                fontSize = 15.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = "${day.date.monthNumber}/${day.date.dayOfMonth}",
-                color = if (isToday) MeowColors.Brand else MeowColors.TextTertiary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
                 modifier = Modifier.weight(1f),
             )
             if (isToday) {
@@ -327,6 +367,7 @@ private fun DayCard(day: CafeteriaDay, today: LocalDate, modifier: Modifier, onO
                         .fillMaxWidth()
                         .aspectRatio(4f / 3f)
                         .clip(RoundedCornerShape(8.dp))
+                        .pointerHoverIcon(PointerIcon.Hand)
                         .clickable { onOpenPhoto(0) },
                 )
                 if (lunch.photos.size > 1) {
@@ -339,6 +380,7 @@ private fun DayCard(day: CafeteriaDay, today: LocalDate, modifier: Modifier, onO
                                     .weight(1f)
                                     .height(44.dp)
                                     .clip(RoundedCornerShape(6.dp))
+                                    .pointerHoverIcon(PointerIcon.Hand)
                                     .clickable { onOpenPhoto(i + 1) },
                             )
                         }
@@ -347,37 +389,48 @@ private fun DayCard(day: CafeteriaDay, today: LocalDate, modifier: Modifier, onO
                 if (lunch.menu.isNotBlank()) {
                     Text(text = lunch.menu, color = MenuText, fontSize = 12.sp, lineHeight = 17.sp)
                 }
+                Text(
+                    text = "${formatClock(lunch.publishedAt)} 게시 · 사진을 누르면 크게 볼 수 있어요",
+                    color = Muted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                )
             }
             lunch != null -> Text(text = lunch.menu.ifBlank { lunch.title }, color = MenuText, fontSize = 12.sp, lineHeight = 17.sp)
             day.holiday -> StatusBox(background = HolidayBg) {
-                Text(text = "운영 없음", color = HolidayText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                day.holidayName?.let {
-                    Text(text = " · $it", color = MeowColors.TextTertiary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "운영 없음", color = HolidayText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    day.holidayName?.let {
+                        Text(text = " · $it", color = MeowColors.TextTertiary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    }
                 }
             }
-            isToday -> StatusBox(background = SoftBg) {
-                Text(text = "11:20쯤 올라와요", color = MeowColors.Brand, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            isToday -> StatusBox(background = TodayBg) {
+                Text(text = "🍚", fontSize = 20.sp)
+                Text(text = "11:20쯤 올라와요", color = MeowColors.Brand, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(text = "올라오면 자동으로 보여드려요", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
             }
             day.date > today -> StatusBox(background = SoftBg) {
-                Text(text = "아직 안 올라왔어요", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text(text = "아직 안 올라왔어요", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
             else -> StatusBox(background = SoftBg) {
-                Text(text = "게시물이 없어요", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text(text = "게시물이 없어요", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
 }
 
-/** 게시물이 없는 날의 한 줄짜리 상태 표시. */
+/** 게시물이 없는 날의 가운데 정렬 상태 상자. */
 @Composable
-private fun StatusBox(background: Color, content: @Composable RowScope.() -> Unit) {
-    Row(
+private fun StatusBox(background: Color, content: @Composable ColumnScope.() -> Unit) {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(10.dp))
             .background(background)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 12.dp, vertical = 28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
         content = content,
     )
 }
@@ -461,9 +514,14 @@ private val DAY_LETTERS = listOf("월", "화", "수", "목", "금", "토", "일"
 
 internal fun LocalDate.dayLetter(): String = DAY_LETTERS[dayOfWeek.isoDayNumber - 1]
 
+/** "11:24" (KST). */
+internal fun formatClock(instant: Instant): String {
+    val t = instant.toLocalDateTime(KST)
+    return "${t.hour.toString().padStart(2, '0')}:${t.minute.toString().padStart(2, '0')}"
+}
+
 /** "10/2(금) 16:59" (KST). */
 internal fun formatPostTime(instant: Instant): String {
     val t = instant.toLocalDateTime(KST)
-    val hm = "${t.hour.toString().padStart(2, '0')}:${t.minute.toString().padStart(2, '0')}"
-    return "${t.monthNumber}/${t.dayOfMonth}(${t.date.dayLetter()}) $hm"
+    return "${t.monthNumber}/${t.dayOfMonth}(${t.date.dayLetter()}) ${formatClock(instant)}"
 }
