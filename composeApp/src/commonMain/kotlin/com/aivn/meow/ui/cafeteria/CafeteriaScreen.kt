@@ -51,13 +51,14 @@ import com.aivn.meow.ui.common.PageHeader
 import com.aivn.meow.ui.common.pageContent
 import com.aivn.meow.ui.weekly.formatSyncTime
 import com.aivn.meow.weekly.isoWeekNumber
-import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
-import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.isoDayNumber
+import kotlinx.datetime.number
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 internal val CardBorder = Color(0xFFE4E4EC)
 internal val Placeholder = Color(0xFFEEF0F5)
@@ -150,7 +151,7 @@ private fun WeekNavigator(monday: LocalDate, onPrevious: () -> Unit, onNext: () 
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         NavButton(text = "‹", onClick = onPrevious, square = true)
         Text(
-            text = "${monday.monthNumber}월 ${monday.dayOfMonth}일 – ${friday.monthNumber}월 ${friday.dayOfMonth}일",
+            text = "${monday.month.number}월 ${monday.day}일 – ${friday.month.number}월 ${friday.day}일",
             color = MeowColors.TextPrimary,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
@@ -279,7 +280,7 @@ private fun DayCard(day: CafeteriaDay, today: LocalDate, modifier: Modifier, onO
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = "${day.date.monthNumber}/${day.date.dayOfMonth}",
+                text = "${day.date.month.number}/${day.date.day}",
                 color = if (isToday) MeowColors.Brand else MeowColors.TextTertiary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
@@ -438,5 +439,5 @@ internal fun LocalDate.dayLetter(): String = DAY_LETTERS[dayOfWeek.isoDayNumber 
 internal fun formatPostTime(instant: Instant): String {
     val t = instant.toLocalDateTime(KST)
     val hm = "${t.hour.toString().padStart(2, '0')}:${t.minute.toString().padStart(2, '0')}"
-    return "${t.monthNumber}/${t.dayOfMonth}(${t.date.dayLetter()}) $hm"
+    return "${t.month.number}/${t.day}(${t.date.dayLetter()}) $hm"
 }

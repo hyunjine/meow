@@ -10,13 +10,13 @@ import com.aivn.meow.ui.weekly.encodeWeeklyCache
 import com.aivn.meow.ui.weekly.mergeUnsavedEdits
 import com.aivn.meow.ui.weekly.restoredFrom
 import com.aivn.meow.ui.weekly.toCache
-import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 class WeeklyCacheTest {
     private val doc = WeekDoc(

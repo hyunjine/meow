@@ -53,10 +53,11 @@ import com.aivn.meow.ui.common.PageHeader
 import com.aivn.meow.ui.common.pageContent
 import com.aivn.meow.ui.weekly.formatSyncTime
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.number
 import kotlinx.datetime.plus
+import kotlin.time.Clock
 
 private val CardBorder = Color(0xFFE4E4EC)
 private val NameColor = Color(0xFF0D0F26)
@@ -155,7 +156,7 @@ private fun WeekNavigator(
     ) {
         ArrowButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "이전 주", onPrevious)
         Text(
-            text = "${monday.monthNumber}월 ${monday.dayOfMonth}일 – ${friday.monthNumber}월 ${friday.dayOfMonth}일",
+            text = "${monday.month.number}월 ${monday.day}일 – ${friday.month.number}월 ${friday.day}일",
             color = MeowColors.TextPrimary,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
@@ -256,7 +257,7 @@ private fun DayColumn(letter: String, date: LocalDate, isToday: Boolean, entries
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(text = letter, color = headerColor, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text(text = "${date.monthNumber}/${date.dayOfMonth}", color = subColor, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Text(text = "${date.month.number}/${date.day}", color = subColor, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             if (isToday) TodayPill()
             Spacer(Modifier.weight(1f))
             if (people > 0) {

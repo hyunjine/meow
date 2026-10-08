@@ -7,9 +7,7 @@ import com.aivn.meow.ms.DocumentChangedException
 import com.aivn.meow.ms.GraphApiException
 import com.aivn.meow.ms.GraphClient
 import io.ktor.http.encodeURLParameter
-import kotlinx.datetime.Clock
 import kotlinx.datetime.DatePeriod
-import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
@@ -17,6 +15,8 @@ import kotlinx.datetime.minus
 import kotlinx.datetime.todayIn
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 /**
  * 김다혜 님 OneDrive 의 '2026 주간회의 자료' 공유 폴더에서 주차 문서를 찾고, Word 표의 내 행을 읽고 쓴다.

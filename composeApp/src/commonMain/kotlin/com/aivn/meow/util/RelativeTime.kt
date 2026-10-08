@@ -1,9 +1,10 @@
 package com.aivn.meow.util
 
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 private val KST = TimeZone.of("Asia/Seoul")
 
@@ -34,7 +35,7 @@ fun formatSyncLabel(iso: String, now: Instant = Clock.System.now()): String {
 /** `yyyy-MM-dd HH:mm` (KST). */
 fun formatKst(instant: Instant): String {
     val local = instant.toLocalDateTime(KST)
-    val date = "${local.year}-${local.monthNumber.pad2()}-${local.dayOfMonth.pad2()}"
+    val date = "${local.year}-${local.month.number.pad2()}-${local.day.pad2()}"
     val time = "${local.hour.pad2()}:${local.minute.pad2()}"
     return "$date $time"
 }
