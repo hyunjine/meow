@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -33,6 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -233,18 +236,31 @@ internal fun ExpandableCard(
     expanded: (@Composable () -> Unit)?,
 ) {
     val showExpanded = isExpanded && expanded != null
+    // 접혀 있을 땐 카드 전체가 눌리고 리플도 카드 전체에 퍼진다.
+    // 펼쳐 있을 땐 헤더만 눌러 접을 수 있고, 헤더 일부만 회색으로 칠해지는 리플은 그리지 않는다.
     Column(
-        modifier = modifier.glassSurface(
-            corner = 20.dp,
-            fill = MeowColors.GlassSurface,
-            borderColor = cardBorderColor(isSelected, isExpanded),
-            borderWidth = if (isSelected) 2.dp else 1.dp,
-        ),
+        modifier = modifier
+            .glassSurface(
+                corner = 20.dp,
+                fill = MeowColors.GlassSurface,
+                borderColor = cardBorderColor(isSelected, isExpanded),
+                borderWidth = if (isSelected) 2.dp else 1.dp,
+            )
+            .clip(RoundedCornerShape(20.dp))
+            .then(if (showExpanded) Modifier else Modifier.clickable(onClick = onToggleExpand)),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onToggleExpand)
+                .then(
+                    if (showExpanded) {
+                        Modifier
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onToggleExpand)
+                            .pointerHoverIcon(PointerIcon.Hand)
+                    } else {
+                        Modifier
+                    },
+                )
                 .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = if (showExpanded) 14.dp else 20.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             content = header,
