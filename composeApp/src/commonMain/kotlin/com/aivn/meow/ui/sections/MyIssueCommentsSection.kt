@@ -13,9 +13,9 @@ import com.aivn.meow.model.CommentMeta
 import com.aivn.meow.model.CommentSource
 import com.aivn.meow.model.Label
 import com.aivn.meow.theme.MeowColors
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
+import kotlin.time.Instant
 
 /**
  * #24 · #84 새 댓글. 댓글(또는 Comment 리뷰) 하나가 항목 하나.

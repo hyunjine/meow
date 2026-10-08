@@ -57,6 +57,7 @@ import androidx.compose.ui.window.PopupProperties
 import com.aivn.meow.cafeteria.CafeteriaPhoto
 import com.aivn.meow.ui.common.OpenOriginalButton
 import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.number
 import kotlinx.datetime.plus
 
 private val Scrim = Color(0xED0B0D1F)
@@ -90,7 +91,7 @@ internal fun CafeteriaLightbox(
             photos = target.day.lunch?.photos.orEmpty()
             index = target.index.coerceIn(0, (photos.size - 1).coerceAtLeast(0))
             val d = target.day.date
-            title = "${d.monthNumber}월 ${d.dayOfMonth}일 ${d.dayLetter()}요일 중식"
+            title = "${d.month.number}월 ${d.day}일 ${d.dayLetter()}요일 중식"
             subtitle = target.day.lunch?.menu.orEmpty()
         }
         is LightboxTarget.Weekly -> {
@@ -99,7 +100,7 @@ internal fun CafeteriaLightbox(
             val m = target.monday
             val f = m.plus(4, DateTimeUnit.DAY)
             title = "주간 메뉴표"
-            subtitle = listOfNotNull(target.post.label, "${m.monthNumber}/${m.dayOfMonth} – ${f.monthNumber}/${f.dayOfMonth}")
+            subtitle = listOfNotNull(target.post.label, "${m.month.number}/${m.day} – ${f.month.number}/${f.day}")
                 .joinToString(" · ")
         }
     }

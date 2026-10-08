@@ -63,11 +63,12 @@ import com.aivn.meow.ui.common.pageContent
 import com.aivn.meow.weekly.MyWeeklyRow
 import com.aivn.meow.weekly.WeekDoc
 import com.aivn.meow.weekly.WeekDocSource
-import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.number
 import kotlinx.datetime.plus
 import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 
 /** 주간 업무 보고 화면: 동기화로 이번 주 문서를 찾아 내 행을 보여 주고, PR 초안을 다듬어 문서에 반영한다. */
 @Composable
@@ -412,7 +413,7 @@ private fun WeekList(
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        text = "${monday.monthNumber}/${monday.dayOfMonth} – ${friday.monthNumber}/${friday.dayOfMonth}",
+                        text = "${monday.month.number}/${monday.day} – ${friday.month.number}/${friday.day}",
                         color = MeowColors.TextTertiary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
@@ -526,7 +527,7 @@ private fun PastWeekCard(
     WeeklyCard(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "Week ${doc.week} · ${monday.monthNumber}/${monday.dayOfMonth} – ${friday.monthNumber}/${friday.dayOfMonth}",
+                text = "Week ${doc.week} · ${monday.month.number}/${monday.day} – ${friday.month.number}/${friday.day}",
                 modifier = Modifier.weight(1f),
                 color = MeowColors.TextPrimary,
                 fontSize = 17.sp,

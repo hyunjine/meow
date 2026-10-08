@@ -6,9 +6,9 @@ import com.aivn.meow.config.writeConfigFile
 import com.aivn.meow.weekly.MyWeeklyRow
 import com.aivn.meow.weekly.ThisWeekDoc
 import com.aivn.meow.weekly.WeekDoc
-import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlin.time.Instant
 
 /**
  * 주간 보고 마지막 동기화 결과(`~/.config/meow/weekly_cache.json`). 다시 켰을 때 바로 보여 주고 뒤에서 새로 동기화한다.

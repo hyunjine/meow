@@ -1,8 +1,8 @@
 package com.aivn.meow.weekly
 
-import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.Serializable
+import kotlin.time.Instant
 
 /** 주간회의 자료 폴더 위치. */
 data class WeeklyFolder(val driveId: String, val itemId: String, val name: String? = null)

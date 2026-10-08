@@ -18,8 +18,8 @@ import com.aivn.meow.weekly.WeeklyReportRepository
 import com.aivn.meow.weekly.isoWeekNumber
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,16 +32,17 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
-import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
+import kotlinx.datetime.number
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.todayIn
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 /** 마지막 동기화 결과. [doc] 이 null 이면 이번 주 문서를 못 찾음. [failed] 면 동기화 자체가 실패. */
 data class WeeklySyncInfo(val at: Instant, val doc: ThisWeekDoc?, val failed: Boolean = false)
@@ -542,7 +543,7 @@ internal fun formatSyncTime(instant: Instant, now: Instant): String {
     val kst = TimeZone.of("Asia/Seoul")
     val local = instant.toLocalDateTime(kst)
     val time = "${local.hour.toString().padStart(2, '0')}:${local.minute.toString().padStart(2, '0')}"
-    return if (local.date == now.toLocalDateTime(kst).date) "오늘 $time" else "${local.monthNumber}/${local.dayOfMonth} $time"
+    return if (local.date == now.toLocalDateTime(kst).date) "오늘 $time" else "${local.month.number}/${local.day} $time"
 }
 
 private fun Throwable.toUserMessage(): String = when (this) {

@@ -3,7 +3,7 @@ package com.aivn.meow.data
 import com.aivn.meow.github.CommentThreadNode
 import com.aivn.meow.github.ThreadCommentNode
 import com.aivn.meow.model.CommentSource
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 /** #84 스레드 하나에서 고른 새 댓글 · Comment 리뷰 한 건. */
 data class PickedComment(

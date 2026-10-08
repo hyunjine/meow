@@ -8,10 +8,10 @@ import com.aivn.meow.ui.sections.AssignedIssuesSection
 import com.aivn.meow.ui.sections.MentionsSection
 import com.aivn.meow.ui.sections.MyIssueCommentsSection
 import com.aivn.meow.ui.sections.MyPrStatusSection
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Instant
 
 /** #66 macOS 알림 한 건의 원인. 표시 문구는 플랫폼(Main.kt)에서 만든다. */
 sealed interface MeowNotice {
