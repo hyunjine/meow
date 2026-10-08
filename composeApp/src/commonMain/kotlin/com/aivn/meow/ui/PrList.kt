@@ -45,6 +45,7 @@ import com.aivn.meow.model.PullRequest
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
 import com.aivn.meow.ui.common.OpenOriginalButton
+import com.aivn.meow.ui.markdown.MarkdownBody
 
 /** 정렬 칩. 클릭하면 세 정렬 옵션 중 하나를 고르는 드롭다운 메뉴가 뜬다. */
 @Composable
@@ -211,26 +212,12 @@ internal fun cardBorderColor(isSelected: Boolean, isExpanded: Boolean): Color = 
     else -> MeowColors.GlassBorder
 }
 
-/** 카드 본문. 펼쳤을 때만 전체를 보여주고, 접혀 있거나 비었으면 영역을 그리지 않는다. */
+/** 카드 본문. 펼쳤을 때만 GitHub 마크다운으로 전체를 보여주고(#119), 접혀 있거나 비었으면 영역을 그리지 않는다. */
 @Composable
 internal fun CardBody(body: String?, isExpanded: Boolean) {
-    val text = remember(body) { body?.let(::tidyBody).orEmpty() }
-    if (!isExpanded || text.isEmpty()) return
-    Text(
-        text = text,
-        color = MeowColors.TextSecondary,
-        fontSize = 13.sp,
-        lineHeight = 20.sp,
-    )
+    if (!isExpanded || body.isNullOrBlank()) return
+    MarkdownBody(markdown = body)
 }
-
-/** 줄 끝 공백을 지우고 연속된 빈 줄을 하나로 줄인다. */
-private fun tidyBody(raw: String): String =
-    raw.lines()
-        .map { it.trimEnd() }
-        .joinToString("\n")
-        .replace(Regex("\n{3,}"), "\n\n")
-        .trim()
 
 /** 카드 오른쪽 위 열 — '원본 보기' 버튼, 본문이 있으면 그 아래 펼치기 표시(⌄ / ⌃). */
 @Composable

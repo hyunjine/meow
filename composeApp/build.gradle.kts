@@ -22,6 +22,8 @@ kotlin {
             implementation(libs.compose.components.resources)
             implementation(libs.kyant.backdrop)
             implementation(libs.kyant.shapes)
+            implementation(libs.markdown.renderer)
+            implementation(libs.markdown.renderer.m3)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.datetime)
             implementation(libs.supabase.realtime)
