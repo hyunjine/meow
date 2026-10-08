@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -40,10 +42,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aivn.meow.data.DiscussionTarget
 import com.aivn.meow.model.CiStatus
 import com.aivn.meow.model.PullRequest
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
+import com.aivn.meow.ui.card.ExpandedCardBody
 import com.aivn.meow.ui.common.MeowType
 import com.aivn.meow.ui.common.OpenOriginalButton
 import com.aivn.meow.ui.markdown.MarkdownBody
@@ -136,7 +140,10 @@ internal fun GlassChip(
 
 /**
  * 2열 그리드용 리뷰 대기 PR 카드. 좁은 폭에서도 제목 · 메타 · 칩이 줄바꿈된다.
- * 카드 클릭은 본문 펼치기/접기, GitHub 열기는 오른쪽 위 버튼.
+ * 헤더(카드 윗부분) 클릭은 펼치기/접기, GitHub 열기는 오른쪽 위 버튼.
+ * #131 펼치면 헤더 아래에 [ExpandedCardBody] (본문 · 댓글 · 리뷰 탭 + [footer]) 가 카드 폭으로 붙는다.
+ *
+ * @param footer 펼친 카드 맨 아래 영역 (#130 머지 푸터 자리). 접혀 있으면 그리지 않는다.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -147,61 +154,106 @@ internal fun PrRow(
     onToggleExpand: () -> Unit,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
+    footer: (@Composable () -> Unit)? = null,
 ) {
-    Row(
-        modifier = modifier
-            .glassSurface(
-                corner = 20.dp,
-                fill = MeowColors.GlassSurface,
-                borderColor = cardBorderColor(isSelected, isExpanded),
-                borderWidth = if (isSelected) 2.dp else 1.dp,
-            )
-            .clickable(onClick = onToggleExpand)
-            .padding(horizontal = 20.dp, vertical = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        AuthorAvatar(initials = pr.authorInitials, color = pr.repoColor)
+    ExpandableCard(
+        isSelected = isSelected,
+        isExpanded = isExpanded,
+        onToggleExpand = onToggleExpand,
+        modifier = modifier,
+        header = {
+            AuthorAvatar(initials = pr.authorInitials, color = pr.repoColor)
 
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                PillChip(pr.repo, pr.repoColor)
-                DotSeparator(Modifier.align(Alignment.CenterVertically))
-                Text(
-                    text = "@${pr.author}",
-                    modifier = Modifier.align(Alignment.CenterVertically),
-                    style = MeowType.Meta,
-                    color = MeowColors.TextSecondary,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = pr.relativeTime,
-                    modifier = Modifier.align(Alignment.CenterVertically),
-                    style = MeowType.Meta,
-                    color = MeowColors.TextTertiary,
-                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    PillChip(pr.repo, pr.repoColor)
+                    DotSeparator(Modifier.align(Alignment.CenterVertically))
+                    Text(
+                        text = "@${pr.author}",
+                        modifier = Modifier.align(Alignment.CenterVertically),
+                        style = MeowType.Meta,
+                        color = MeowColors.TextSecondary,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = pr.relativeTime,
+                        modifier = Modifier.align(Alignment.CenterVertically),
+                        style = MeowType.Meta,
+                        color = MeowColors.TextTertiary,
+                    )
+                }
+
+                Text(text = titleWithNumber(pr.title, pr.number), style = MeowType.Title)
+
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (pr.isDraft) PillChip("Draft", MeowColors.Grey)
+                    CiChip(pr.ci)
+                    pr.labels.forEach { label -> PillChip(label.text, label.color) }
+                }
             }
 
-            Text(text = titleWithNumber(pr.title, pr.number), style = MeowType.Title)
+            CardActions(onOpen = onOpen, hasBody = true, isExpanded = isExpanded)
+        },
+        expanded = {
+            ExpandedCardBody(
+                target = DiscussionTarget(
+                    url = pr.url,
+                    repoFullName = pr.repoFullName,
+                    number = pr.number,
+                    isPullRequest = true,
+                    updatedAtIso = pr.updatedAtIso,
+                ),
+                body = pr.body,
+                footer = footer,
+            )
+        },
+    )
+}
 
-            CardBody(body = pr.body, isExpanded = isExpanded)
-
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                if (pr.isDraft) PillChip("Draft", MeowColors.Grey)
-                CiChip(pr.ci)
-                pr.labels.forEach { label -> PillChip(label.text, label.color) }
+/**
+ * #131 카드 틀: [header] 행만 클릭으로 펼치기/접기하고, 펼치면 그 아래 [expanded] 를 카드 폭으로 그린다.
+ * [expanded] 가 null 이면 펼친 영역 없이 헤더만 그린다. 펼친 영역은 클릭을 받지 않으므로 그 안의 탭 · 링크를 눌러도 카드가 접히지 않는다.
+ */
+@Composable
+internal fun ExpandableCard(
+    isSelected: Boolean,
+    isExpanded: Boolean,
+    onToggleExpand: () -> Unit,
+    modifier: Modifier = Modifier,
+    header: @Composable RowScope.() -> Unit,
+    expanded: (@Composable () -> Unit)?,
+) {
+    val showExpanded = isExpanded && expanded != null
+    Column(
+        modifier = modifier.glassSurface(
+            corner = 20.dp,
+            fill = MeowColors.GlassSurface,
+            borderColor = cardBorderColor(isSelected, isExpanded),
+            borderWidth = if (isSelected) 2.dp else 1.dp,
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggleExpand)
+                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = if (showExpanded) 14.dp else 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            content = header,
+        )
+        if (showExpanded) {
+            Box(modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 20.dp)) {
+                expanded?.invoke()
             }
         }
-
-        CardActions(onOpen = onOpen, hasBody = !pr.body.isNullOrBlank(), isExpanded = isExpanded)
     }
 }
 

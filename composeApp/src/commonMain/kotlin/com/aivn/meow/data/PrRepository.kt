@@ -48,6 +48,9 @@ class PrRepository(
         )
     }
 
+    /** #131 펼친 카드의 댓글 · 리뷰. */
+    suspend fun loadDiscussion(target: DiscussionTarget): CardDiscussion = client.loadCardDiscussion(target)
+
     /**
      * #127 즐겨찾기 관리 모달의 레포 목록 = 조직 레포 + 내 개인 레포. 대시보드 폴링과 별개로 시작 · 수동 새로고침 때만 부른다.
      * 한쪽이 실패하면 전체를 실패로 본다 (직전 목록 유지).
