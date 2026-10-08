@@ -1,6 +1,9 @@
 package com.aivn.meow.weekly
 
 import com.aivn.meow.github.GithubClient
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 
 /** 초안에 들어간 PR 하나. */
@@ -14,11 +17,15 @@ data class DraftPr(
     val mergedAt: String,
 )
 
-/** 실적 초안. [lines] 는 `• {repo}` / `- {제목}` 형식의 셀 문단 목록, 계획은 비워 둔다. */
+/**
+ * 실적 초안. [lines] 는 `• {repo}` / `- {요약}` 형식의 셀 문단 목록(`-` 줄 최대 [MAX_DRAFT_ITEMS] 개), 계획은 비워 둔다.
+ * [summarized] 가 false 면 요약에 실패해 최근 PR 제목으로 채웠다(PR 이 없을 때도 false).
+ */
 data class WeeklyDraft(
     val period: DateRange,
     val lines: List<String>,
     val pullRequests: List<DraftPr>,
+    val summarized: Boolean = false,
 )
 
 /**
@@ -28,15 +35,34 @@ data class WeeklyDraft(
 class WeeklyDraftBuilder(
     private val github: GithubClient,
     private val org: String = "Team-AIVN",
+    private val summarizer: DraftSummarizer = defaultDraftSummarizer(),
 ) {
-    suspend fun buildResultDraft(period: DateRange): WeeklyDraft {
-        val prs = fetchMergedPrs(period)
-            .sortedBy { it.mergedAt }
-        // 레포 순서: 그 레포의 첫 머지 시각 순.
-        val lines = prs.groupBy { it.repo }.flatMap { (repo, items) ->
-            listOf("• $repo") + items.map { "- ${it.cleanTitle}" }
+    /** (기간 + PR 목록) → 성공한 요약 줄. 동기화마다 요약을 다시 돌리지 않도록 메모리에 둔다. */
+    private val summaryCache = mutableMapOf<String, List<String>>()
+    private val cacheLock = Mutex()
+
+    suspend fun buildResultDraft(period: DateRange): WeeklyDraft = summarize(period, fetchResultPrs(period))
+
+    /** 실적 기간에 머지한 PR(머지 순). */
+    suspend fun fetchResultPrs(period: DateRange): List<DraftPr> = fetchMergedPrs(period).sortedBy { it.mergedAt }
+
+    /**
+     * [prs] 를 한국어 실적 요약으로 만든다. 실패하면 최근 PR 제목 [MAX_DRAFT_ITEMS] 개로 채운다.
+     * 같은 기간 · PR 목록이면 이전에 성공한 요약을 다시 쓴다([forceRefresh] 면 새로 만든다).
+     */
+    suspend fun summarize(period: DateRange, prs: List<DraftPr>, forceRefresh: Boolean = false): WeeklyDraft {
+        if (prs.isEmpty()) return WeeklyDraft(period, emptyList(), prs)
+        val key = summaryCacheKey(period, prs)
+        if (!forceRefresh) {
+            cacheLock.withLock { summaryCache[key] }?.let { return WeeklyDraft(period, it, prs, summarized = true) }
         }
-        return WeeklyDraft(period = period, lines = lines, pullRequests = prs)
+        val raw = runCatching { summarizer.summarize(buildSummaryPrompt(prs)) }
+            .onFailure { if (it is CancellationException) throw it }
+            .getOrNull()
+        val lines = parseSummaryLines(raw)
+            ?: return WeeklyDraft(period, fallbackDraftLines(prs), prs, summarized = false)
+        cacheLock.withLock { summaryCache[key] = lines }
+        return WeeklyDraft(period, lines, prs, summarized = true)
     }
 
     private suspend fun fetchMergedPrs(period: DateRange): List<DraftPr> {
@@ -119,3 +145,7 @@ fun cleanPrTitle(title: String): String {
     t = t.replace(LEADING_BRACKETS, "")
     return t.trim().ifEmpty { title.trim() }
 }
+
+/** 요약 캐시 키: 기간 + PR(레포 · 번호 · 제목). */
+internal fun summaryCacheKey(period: DateRange, prs: List<DraftPr>): String =
+    "${period.start}..${period.endInclusive}|" + prs.map { "${it.repo}#${it.number}:${it.title}" }.sorted().joinToString("|")

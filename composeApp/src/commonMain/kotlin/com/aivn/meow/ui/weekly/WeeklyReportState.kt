@@ -9,7 +9,9 @@ import com.aivn.meow.weekly.DateRange
 import com.aivn.meow.weekly.MyWeeklyRow
 import com.aivn.meow.weekly.ThisWeekDoc
 import com.aivn.meow.weekly.WeekDoc
+import com.aivn.meow.weekly.WeeklyDraft
 import com.aivn.meow.weekly.WeeklyDraftBuilder
+import com.aivn.meow.weekly.fallbackDraftLines
 import com.aivn.meow.weekly.WeeklyReportRepository
 import com.aivn.meow.weekly.isoWeekNumber
 import kotlinx.coroutines.CancellationException
@@ -65,6 +67,8 @@ sealed interface WeeklyContent {
         val draftLines: List<String>? = null,
         val edited: Boolean = false,
         val draftError: String? = null,
+        /** 요약에 실패해 PR 제목으로 채웠을 때의 안내. */
+        val draftNote: String? = null,
         val drafting: Boolean = false,
         val eTag: String?,
         val saving: Boolean = false,
@@ -298,13 +302,19 @@ class WeeklyReportViewModel(
     fun regenerateDraft() {
         val found = _state.value.content as? WeeklyContent.Found ?: return
         if (found.drafting) return
-        updateFound { it.copy(drafting = true, draftError = null, saveMessage = null) }
+        updateFound { it.copy(drafting = true, draftError = null, draftNote = null, saveMessage = null) }
         scope.launch {
-            val result = runCatching { io { draftBuilder.buildResultDraft(resultPeriod(found.row, found.thisWeek.doc)).lines } }
+            val result = runCatching {
+                io {
+                    val period = resultPeriod(found.row, found.thisWeek.doc)
+                    draftBuilder.summarize(period, draftBuilder.fetchResultPrs(period), forceRefresh = true)
+                }
+            }
             result.exceptionOrNull()?.let { if (it is CancellationException) throw it }
             updateFound { current ->
                 result.fold(
-                    onSuccess = { lines ->
+                    onSuccess = { draft ->
+                        val lines = draft.lines
                         if (lines.isEmpty()) {
                             current.copy(drafting = false, draftError = "실적 기간에 머지한 PR 이 없어요")
                         } else {
@@ -313,6 +323,7 @@ class WeeklyReportViewModel(
                                 resultText = lines.joinToString("\n"),
                                 resultIsDraft = true,
                                 draftLines = lines,
+                                draftNote = if (draft.summarized) null else FALLBACK_NOTE,
                                 edited = true,
                             )
                         }
@@ -339,6 +350,7 @@ class WeeklyReportViewModel(
                         saving = false,
                         row = it.row.copy(results = results, plans = plans),
                         resultIsDraft = false,
+                        draftNote = null,
                         edited = false,
                         eTag = newETag.ifEmpty { null },
                         saveMessage = SaveMessage("반영 완료 · ${formatTime(clock.now())}", ok = true),
@@ -360,15 +372,19 @@ class WeeklyReportViewModel(
     /** 내 행 읽기와 PR 초안을 함께 시작한다. 초안 기간은 우선 ISO 주차(월~금)로 잡고, 문서 헤더 기간이 다르면 다시 만든다. */
     private suspend fun loadFound(thisWeek: ThisWeekDoc, name: String): WeeklyContent.Found = withContext(Dispatchers.Default) {
         val guessed = weekdayRange(thisWeek.doc.week)
-        val draftAsync = async { runCatching { draftBuilder.buildResultDraft(guessed).lines } }
+        val prsAsync = async { runCatching { draftBuilder.fetchResultPrs(guessed) } }
         val row = repository.readMyRow(thisWeek.doc, name)
         val headerPeriod = row.header.result.period
-        var draft = draftAsync.await()
-        if (headerPeriod != null && headerPeriod != guessed) {
-            draft = runCatching { draftBuilder.buildResultDraft(headerPeriod).lines }
+        var prs = prsAsync.await()
+        val period = if (headerPeriod != null && headerPeriod != guessed) headerPeriod else guessed
+        if (period != guessed) prs = runCatching { draftBuilder.fetchResultPrs(period) }
+        prs.exceptionOrNull()?.let { if (it is CancellationException) throw it }
+        // 칸이 비어 채울 때만 요약한다(이미 쓴 칸이면 PR 제목 초안만 참고로 둔다).
+        val draft = prs.getOrNull()?.let { list ->
+            if (row.results.isEmpty()) draftBuilder.summarize(period, list)
+            else WeeklyDraft(period, fallbackDraftLines(list), list)
         }
-        draft.exceptionOrNull()?.let { if (it is CancellationException) throw it }
-        val draftLines = draft.getOrNull()
+        val draftLines = draft?.lines
         val fillDraft = row.results.isEmpty() && !draftLines.isNullOrEmpty()
         WeeklyContent.Found(
             thisWeek = thisWeek,
@@ -377,7 +393,8 @@ class WeeklyReportViewModel(
             planText = row.plans.joinToString("\n"),
             resultIsDraft = fillDraft,
             draftLines = draftLines,
-            draftError = draft.exceptionOrNull()?.let { "PR 초안을 만들지 못했어요: ${it.toUserMessage()}" },
+            draftError = prs.exceptionOrNull()?.let { "PR 초안을 만들지 못했어요: ${it.toUserMessage()}" },
+            draftNote = if (fillDraft && draft?.summarized == false) FALLBACK_NOTE else null,
             eTag = row.eTag.ifEmpty { null },
         )
     }
@@ -430,6 +447,7 @@ class WeeklyReportViewModel(
     private suspend fun <T> io(block: suspend () -> T): T = withContext(Dispatchers.Default) { block() }
 
     companion object {
+        internal const val FALLBACK_NOTE = "요약을 만들지 못해 PR 제목으로 채웠어요"
         const val WEEK_LIST_SIZE = 6
         private const val CACHE_DEBOUNCE_MS = 1_000L
     }

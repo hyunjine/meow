@@ -491,6 +491,9 @@ private fun DocumentCard(
         found.draftError?.let {
             Text(text = it, color = MeowColors.Warning, fontSize = 12.sp, fontWeight = FontWeight.Medium)
         }
+        found.draftNote?.let {
+            Text(text = it, color = MeowColors.TextSecondary, fontSize = 12.sp)
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             row.doc.webUrl?.let { url -> OpenOriginalButton(onClick = { onOpenUrl(url) }) }
             Spacer(Modifier.weight(1f))
