@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -43,6 +44,8 @@ import com.aivn.meow.ui.MeowNotice
 import com.aivn.meow.ui.cafeteria.CafeteriaScreen
 import com.aivn.meow.ui.cafeteria.CafeteriaViewModel
 import com.aivn.meow.ui.nav.AppDrawer
+import com.aivn.meow.ui.pr.LocalMergeController
+import com.aivn.meow.ui.pr.MergeController
 import com.aivn.meow.ui.nav.AppScreen
 import com.aivn.meow.ui.schedule.OUTLOOK_WEB_CALENDAR_URL
 import com.aivn.meow.ui.schedule.OutlookOpenResult
@@ -73,6 +76,10 @@ fun App(
         val client = githubClientFactory(config.token)
         val repository = PrRepository(client, DashboardSections)
         DashboardViewModel(repository, config.org, scope)
+    }
+    // #130 내 PR 카드의 머지 바. 머지에 성공하면 대시보드를 새로고침해 목록에서 뺀다.
+    val mergeController = remember(viewModel) {
+        MergeController(githubClientFactory(config.token), scope, onMerged = { viewModel.refresh() })
     }
     // 주간 보고 상태는 화면 전환에도 유지되도록 App 수준에 둔다.
     val weeklyViewModel = remember(config.token) {
@@ -117,6 +124,9 @@ fun App(
     // 화면별 rememberSaveable 상태(탭 · 정렬 · 스크롤 등)를 화면 전환 후에도 유지
     val screenStateHolder = rememberSaveableStateHolder()
 
+    // 대시보드를 새로 불러올 때마다(자동 새로고침 포함) 펼친 카드의 머지 상태도 다시 조회한다.
+    LaunchedEffect(snapshot?.fetchedAtIso) { mergeController.onDashboardRefreshed() }
+
     LaunchedEffect(realtimeService, viewerLogin) {
         val service = realtimeService ?: return@LaunchedEffect
         val login = viewerLogin ?: return@LaunchedEffect
@@ -146,16 +156,18 @@ fun App(
             Box(modifier = Modifier.weight(1f).fillMaxHeight().background(MeowColors.Background)) {
                 screenStateHolder.SaveableStateProvider(screen.name) {
                     when (screen) {
-                        AppScreen.GITHUB -> Dashboard(
-                            state = state,
-                            onRefresh = { viewModel.refresh() },
-                            onOpenPr = { pr: PullRequest -> onOpenUrl(pr.url) },
-                            onOpenUrl = onOpenUrl,
-                            repoPrefs = repoPrefs,
-                            repoUniverse = repoUniverse,
-                            onToggleFavorite = viewModel::toggleFavorite,
-                            onToggleSidebarRepo = viewModel::toggleSidebarRepo,
-                        )
+                        AppScreen.GITHUB -> CompositionLocalProvider(LocalMergeController provides mergeController) {
+                            Dashboard(
+                                state = state,
+                                onRefresh = { viewModel.refresh() },
+                                onOpenPr = { pr: PullRequest -> onOpenUrl(pr.url) },
+                                onOpenUrl = onOpenUrl,
+                                repoPrefs = repoPrefs,
+                                repoUniverse = repoUniverse,
+                                onToggleFavorite = viewModel::toggleFavorite,
+                                onToggleSidebarRepo = viewModel::toggleSidebarRepo,
+                            )
+                        }
                         AppScreen.WEEKLY_REPORT -> WeeklyReportScreen(viewModel = weeklyViewModel, onOpenUrl = onOpenUrl)
                         AppScreen.SCHEDULE -> ScheduleScreen(viewModel = scheduleViewModel, onOpenOutlookCalendar = onOpenOutlookCalendar)
                         AppScreen.CAFETERIA -> CafeteriaScreen(viewModel = cafeteriaViewModel, onOpenUrl = onOpenUrl)

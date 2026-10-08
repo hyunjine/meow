@@ -38,6 +38,7 @@ internal fun SectionRow(
     onToggleExpand: () -> Unit,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
+    footer: (@Composable () -> Unit)? = null,
 ) {
     Row(
         modifier = modifier
@@ -105,8 +106,11 @@ internal fun SectionRow(
                     item.labels.forEach { label -> PillChip(label.text, label.color) }
                 }
             }
+
+            // #130 펼친 카드 맨 아래 슬롯 (내 PR 현황의 머지 바 등)
+            if (isExpanded) footer?.invoke()
         }
 
-        CardActions(onOpen = onOpen, hasBody = !item.body.isNullOrBlank(), isExpanded = isExpanded)
+        CardActions(onOpen = onOpen, hasBody = !item.body.isNullOrBlank() || footer != null, isExpanded = isExpanded)
     }
 }
