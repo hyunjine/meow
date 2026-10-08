@@ -17,8 +17,33 @@ data class DraftPr(
     val mergedAt: String,
 )
 
+/** 계획 초안에 들어가는 열린 항목 하나(나에게 할당된 열린 이슈, 또는 내 진행 중 PR). */
+data class DraftPlanItem(
+    val repo: String,
+    val number: Int,
+    val title: String,
+    /** 접두사 · `(#n)` 을 뗀 문서용 제목. */
+    val cleanTitle: String,
+    val url: String,
+    /** ISO-8601 갱신 시각(정렬용). */
+    val updatedAt: String,
+    val labels: List<String> = emptyList(),
+    val milestone: String? = null,
+    val isPullRequest: Boolean = false,
+)
+
 /**
- * 실적 초안. [lines] 는 `• {repo}` / `- {요약}` 형식의 셀 문단 목록(`-` 줄 최대 [MAX_DRAFT_ITEMS] 개), 계획은 비워 둔다.
+ * 계획 초안. [lines] 는 실적과 같은 `• {repo}` / `- {계획}` 형식(`-` 줄 최대 [MAX_DRAFT_ITEMS] 개).
+ * [summarized] 가 false 면 요약에 실패해 최근 항목 제목으로 채웠다(항목이 없을 때도 false).
+ */
+data class WeeklyPlanDraft(
+    val lines: List<String>,
+    val items: List<DraftPlanItem>,
+    val summarized: Boolean = false,
+)
+
+/**
+ * 실적 초안. [lines] 는 `• {repo}` / `- {요약}` 형식의 셀 문단 목록(`-` 줄 최대 [MAX_DRAFT_ITEMS] 개). 계획 초안은 [WeeklyPlanDraft].
  * [summarized] 가 false 면 요약에 실패해 최근 PR 제목으로 채웠다(PR 이 없을 때도 false).
  */
 data class WeeklyDraft(
@@ -63,6 +88,55 @@ class WeeklyDraftBuilder(
             ?: return WeeklyDraft(period, fallbackDraftLines(prs), prs, summarized = false)
         cacheLock.withLock { summaryCache[key] = lines }
         return WeeklyDraft(period, lines, prs, summarized = true)
+    }
+
+    /**
+     * [items] 를 한국어 다음 주 계획 요약으로 만든다. 실패하면 최근 갱신 항목 제목 [MAX_DRAFT_ITEMS] 개로 채운다.
+     * 같은 기간 · 항목 목록이면 이전에 성공한 요약을 다시 쓴다([forceRefresh] 면 새로 만든다).
+     */
+    suspend fun summarizePlan(period: DateRange, items: List<DraftPlanItem>, forceRefresh: Boolean = false): WeeklyPlanDraft {
+        if (items.isEmpty()) return WeeklyPlanDraft(emptyList(), items)
+        val key = "plan|" + planCacheKey(period, items)
+        if (!forceRefresh) {
+            cacheLock.withLock { summaryCache[key] }?.let { return WeeklyPlanDraft(it, items, summarized = true) }
+        }
+        val raw = runCatching { summarizer.summarize(buildPlanPrompt(items)) }
+            .onFailure { if (it is CancellationException) throw it }
+            .getOrNull()
+        val lines = parseSummaryLines(raw)
+            ?: return WeeklyPlanDraft(fallbackPlanLines(items), items, summarized = false)
+        cacheLock.withLock { summaryCache[key] = lines }
+        return WeeklyPlanDraft(lines, items, summarized = true)
+    }
+
+    /**
+     * 계획 후보: [org] 에서 나에게 할당된 열린 이슈와 내가 올린 열린(초안 아님) PR, 각각 최근 갱신 순 최대 [PLAN_SEARCH_SIZE] 개.
+     * 결과는 최근 갱신 순.
+     */
+    suspend fun fetchPlanItems(): List<DraftPlanItem> {
+        val variables = mapOf(
+            "issues" to "org:$org assignee:@me is:issue is:open sort:updated-desc",
+            "prs" to "org:$org author:@me is:pr is:open draft:false sort:updated-desc",
+        )
+        val data = github.query(PLAN_QUERY, PlanSearchData.serializer(), variables)
+        val issues = data.issues.nodes.mapNotNull { it.toPlanItem(isPullRequest = false) }
+        val prs = data.prs.nodes.filter { it.isDraft != true }.mapNotNull { it.toPlanItem(isPullRequest = true) }
+        return (issues + prs).sortedByDescending { it.updatedAt }
+    }
+
+    private fun PlanNode.toPlanItem(isPullRequest: Boolean): DraftPlanItem? {
+        if (number == null || title == null) return null
+        return DraftPlanItem(
+            repo = repository?.name.orEmpty(),
+            number = number,
+            title = title,
+            cleanTitle = cleanPrTitle(title),
+            url = url.orEmpty(),
+            updatedAt = updatedAt.orEmpty(),
+            labels = labels?.nodes.orEmpty().mapNotNull { it.name },
+            milestone = milestone?.title,
+            isPullRequest = isPullRequest,
+        )
     }
 
     private suspend fun fetchMergedPrs(period: DateRange): List<DraftPr> {
@@ -115,8 +189,58 @@ class WeeklyDraftBuilder(
     @Serializable
     private data class RepoName(val name: String)
 
+    @Serializable
+    private data class PlanSearchData(val issues: PlanSearch, val prs: PlanSearch)
+
+    @Serializable
+    private data class PlanSearch(val nodes: List<PlanNode> = emptyList())
+
+    @Serializable
+    private data class PlanNode(
+        val number: Int? = null,
+        val title: String? = null,
+        val url: String? = null,
+        val updatedAt: String? = null,
+        val isDraft: Boolean? = null,
+        val repository: RepoName? = null,
+        val labels: LabelNodes? = null,
+        val milestone: Milestone? = null,
+    )
+
+    @Serializable
+    private data class LabelNodes(val nodes: List<LabelName> = emptyList())
+
+    @Serializable
+    private data class LabelName(val name: String? = null)
+
+    @Serializable
+    private data class Milestone(val title: String? = null)
+
     companion object {
         private const val MAX_PAGES = 5
+        private const val PLAN_SEARCH_SIZE = 30
+        private val PLAN_QUERY = """
+            query(${'$'}issues: String!, ${'$'}prs: String!) {
+              issues: search(query: ${'$'}issues, type: ISSUE, first: $PLAN_SEARCH_SIZE) {
+                nodes {
+                  ... on Issue {
+                    number title url updatedAt repository { name }
+                    labels(first: 5) { nodes { name } }
+                    milestone { title }
+                  }
+                }
+              }
+              prs: search(query: ${'$'}prs, type: ISSUE, first: $PLAN_SEARCH_SIZE) {
+                nodes {
+                  ... on PullRequest {
+                    number title url updatedAt isDraft repository { name }
+                    labels(first: 5) { nodes { name } }
+                    milestone { title }
+                  }
+                }
+              }
+            }
+        """.trimIndent()
         private val QUERY = """
             query(${'$'}q: String!, ${'$'}after: String) {
               search(query: ${'$'}q, type: ISSUE, first: 100, after: ${'$'}after) {
@@ -149,3 +273,9 @@ fun cleanPrTitle(title: String): String {
 /** 요약 캐시 키: 기간 + PR(레포 · 번호 · 제목). */
 internal fun summaryCacheKey(period: DateRange, prs: List<DraftPr>): String =
     "${period.start}..${period.endInclusive}|" + prs.map { "${it.repo}#${it.number}:${it.title}" }.sorted().joinToString("|")
+
+/** 계획 요약 캐시 키: 기간 + 항목(종류 · 레포 · 번호 · 제목 · 라벨). */
+internal fun planCacheKey(period: DateRange, items: List<DraftPlanItem>): String =
+    "${period.start}..${period.endInclusive}|" + items.map {
+        "${if (it.isPullRequest) "pr" else "issue"}:${it.repo}#${it.number}:${it.title}:${it.labels.sorted().joinToString(",")}"
+    }.sorted().joinToString("|")

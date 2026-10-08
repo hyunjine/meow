@@ -11,7 +11,9 @@ import com.aivn.meow.weekly.ThisWeekDoc
 import com.aivn.meow.weekly.WeekDoc
 import com.aivn.meow.weekly.WeeklyDraft
 import com.aivn.meow.weekly.WeeklyDraftBuilder
+import com.aivn.meow.weekly.WeeklyPlanDraft
 import com.aivn.meow.weekly.fallbackDraftLines
+import com.aivn.meow.weekly.fallbackPlanLines
 import com.aivn.meow.weekly.WeeklyReportRepository
 import com.aivn.meow.weekly.isoWeekNumber
 import kotlinx.coroutines.CancellationException
@@ -70,6 +72,13 @@ sealed interface WeeklyContent {
         /** 요약에 실패해 PR 제목으로 채웠을 때의 안내. */
         val draftNote: String? = null,
         val drafting: Boolean = false,
+        /** 계획 칸을 열린 이슈 · PR 초안으로 채운 상태. */
+        val planIsDraft: Boolean = false,
+        /** 동기화 때 만든 계획 초안. */
+        val planDraftLines: List<String>? = null,
+        val planDraftError: String? = null,
+        /** 계획 요약에 실패해 이슈 제목으로 채웠을 때의 안내. */
+        val planDraftNote: String? = null,
         val eTag: String?,
         val saving: Boolean = false,
         val saveMessage: SaveMessage? = null,
@@ -298,28 +307,38 @@ class WeeklyReportViewModel(
 
     fun editPlan(text: String) = updateFound { it.copy(planText = text, edited = true, saveMessage = null) }
 
-    /** 실적 칸을 PR 초안으로 다시 채운다(편집 중이던 실적 텍스트는 덮어쓴다). */
+    /**
+     * 실적 칸은 머지한 PR 초안, 계획 칸은 열린 이슈 · PR 초안으로 다시 채운다(편집 중이던 두 칸 텍스트는 덮어쓴다).
+     * 두 요약은 함께 돌린다. 한쪽이 실패하면 그 칸은 그대로 두고 오류만 알린다.
+     */
     fun regenerateDraft() {
         val found = _state.value.content as? WeeklyContent.Found ?: return
         if (found.drafting) return
-        updateFound { it.copy(drafting = true, draftError = null, draftNote = null, saveMessage = null) }
+        updateFound {
+            it.copy(drafting = true, draftError = null, draftNote = null, planDraftError = null, planDraftNote = null, saveMessage = null)
+        }
         scope.launch {
-            val result = runCatching {
-                io {
-                    val period = resultPeriod(found.row, found.thisWeek.doc)
-                    draftBuilder.summarize(period, draftBuilder.fetchResultPrs(period), forceRefresh = true)
+            val period = resultPeriod(found.row, found.thisWeek.doc)
+            val planPeriod = planPeriod(found.row, period)
+            val (result, plan) = withContext(Dispatchers.Default) {
+                val resultAsync = async {
+                    runCatching { draftBuilder.summarize(period, draftBuilder.fetchResultPrs(period), forceRefresh = true) }
                 }
+                val planAsync = async {
+                    runCatching { draftBuilder.summarizePlan(planPeriod, draftBuilder.fetchPlanItems(), forceRefresh = true) }
+                }
+                resultAsync.await() to planAsync.await()
             }
             result.exceptionOrNull()?.let { if (it is CancellationException) throw it }
+            plan.exceptionOrNull()?.let { if (it is CancellationException) throw it }
             updateFound { current ->
-                result.fold(
+                val withResult = result.fold(
                     onSuccess = { draft ->
                         val lines = draft.lines
                         if (lines.isEmpty()) {
-                            current.copy(drafting = false, draftError = "실적 기간에 머지한 PR 이 없어요")
+                            current.copy(draftError = "실적 기간에 머지한 PR 이 없어요")
                         } else {
                             current.copy(
-                                drafting = false,
                                 resultText = lines.joinToString("\n"),
                                 resultIsDraft = true,
                                 draftLines = lines,
@@ -328,8 +347,26 @@ class WeeklyReportViewModel(
                             )
                         }
                     },
-                    onFailure = { current.copy(drafting = false, draftError = "PR 초안을 만들지 못했어요: ${it.toUserMessage()}") },
+                    onFailure = { current.copy(draftError = "PR 초안을 만들지 못했어요: ${it.toUserMessage()}") },
                 )
+                val withPlan = plan.fold(
+                    onSuccess = { draft ->
+                        val lines = draft.lines
+                        if (lines.isEmpty()) {
+                            withResult.copy(planDraftError = "나에게 할당된 열린 이슈 · PR 이 없어요")
+                        } else {
+                            withResult.copy(
+                                planText = lines.joinToString("\n"),
+                                planIsDraft = true,
+                                planDraftLines = lines,
+                                planDraftNote = if (draft.summarized) null else PLAN_FALLBACK_NOTE,
+                                edited = true,
+                            )
+                        }
+                    },
+                    onFailure = { withResult.copy(planDraftError = "계획 초안을 만들지 못했어요: ${it.toUserMessage()}") },
+                )
+                withPlan.copy(drafting = false)
             }
         }
     }
@@ -351,6 +388,8 @@ class WeeklyReportViewModel(
                         row = it.row.copy(results = results, plans = plans),
                         resultIsDraft = false,
                         draftNote = null,
+                        planIsDraft = false,
+                        planDraftNote = null,
                         edited = false,
                         eTag = newETag.ifEmpty { null },
                         saveMessage = SaveMessage("반영 완료 · ${formatTime(clock.now())}", ok = true),
@@ -369,32 +408,55 @@ class WeeklyReportViewModel(
         }
     }
 
-    /** 내 행 읽기와 PR 초안을 함께 시작한다. 초안 기간은 우선 ISO 주차(월~금)로 잡고, 문서 헤더 기간이 다르면 다시 만든다. */
+    /**
+     * 내 행 읽기 · PR 초안 · 계획 후보(열린 이슈 · PR) 조회를 함께 시작한다. 초안 기간은 우선 ISO 주차(월~금)로 잡고,
+     * 문서 헤더 기간이 다르면 다시 만든다. 실적 · 계획 요약도 함께 돌린다.
+     */
     private suspend fun loadFound(thisWeek: ThisWeekDoc, name: String): WeeklyContent.Found = withContext(Dispatchers.Default) {
         val guessed = weekdayRange(thisWeek.doc.week)
         val prsAsync = async { runCatching { draftBuilder.fetchResultPrs(guessed) } }
+        val planItemsAsync = async { runCatching { draftBuilder.fetchPlanItems() } }
         val row = repository.readMyRow(thisWeek.doc, name)
         val headerPeriod = row.header.result.period
         var prs = prsAsync.await()
         val period = if (headerPeriod != null && headerPeriod != guessed) headerPeriod else guessed
         if (period != guessed) prs = runCatching { draftBuilder.fetchResultPrs(period) }
         prs.exceptionOrNull()?.let { if (it is CancellationException) throw it }
-        // 칸이 비어 채울 때만 요약한다(이미 쓴 칸이면 PR 제목 초안만 참고로 둔다).
-        val draft = prs.getOrNull()?.let { list ->
-            if (row.results.isEmpty()) draftBuilder.summarize(period, list)
-            else WeeklyDraft(period, fallbackDraftLines(list), list)
+        // 칸이 비어 채울 때만 요약한다(이미 쓴 칸이면 제목 초안만 참고로 둔다).
+        val draftAsync = async {
+            prs.getOrNull()?.let { list ->
+                if (row.results.isEmpty()) draftBuilder.summarize(period, list)
+                else WeeklyDraft(period, fallbackDraftLines(list), list)
+            }
         }
+        val planItems = planItemsAsync.await()
+        planItems.exceptionOrNull()?.let { if (it is CancellationException) throw it }
+        val planPeriod = planPeriod(row, period)
+        val planDraftAsync = async {
+            planItems.getOrNull()?.let { list ->
+                if (row.plans.isEmpty()) draftBuilder.summarizePlan(planPeriod, list)
+                else WeeklyPlanDraft(fallbackPlanLines(list), list)
+            }
+        }
+        val draft = draftAsync.await()
+        val planDraft = planDraftAsync.await()
         val draftLines = draft?.lines
         val fillDraft = row.results.isEmpty() && !draftLines.isNullOrEmpty()
+        val planDraftLines = planDraft?.lines
+        val fillPlan = row.plans.isEmpty() && !planDraftLines.isNullOrEmpty()
         WeeklyContent.Found(
             thisWeek = thisWeek,
             row = row,
             resultText = if (fillDraft) draftLines.orEmpty().joinToString("\n") else row.results.joinToString("\n"),
-            planText = row.plans.joinToString("\n"),
+            planText = if (fillPlan) planDraftLines.orEmpty().joinToString("\n") else row.plans.joinToString("\n"),
             resultIsDraft = fillDraft,
             draftLines = draftLines,
             draftError = prs.exceptionOrNull()?.let { "PR 초안을 만들지 못했어요: ${it.toUserMessage()}" },
             draftNote = if (fillDraft && draft?.summarized == false) FALLBACK_NOTE else null,
+            planIsDraft = fillPlan,
+            planDraftLines = planDraftLines,
+            planDraftError = planItems.exceptionOrNull()?.let { "계획 초안을 만들지 못했어요: ${it.toUserMessage()}" },
+            planDraftNote = if (fillPlan && planDraft?.summarized == false) PLAN_FALLBACK_NOTE else null,
             eTag = row.eTag.ifEmpty { null },
         )
     }
@@ -427,6 +489,10 @@ class WeeklyReportViewModel(
     private fun resultPeriod(row: MyWeeklyRow, doc: WeekDoc): DateRange =
         row.header.result.period ?: weekdayRange(doc.week)
 
+    /** 계획 요약 캐시에 쓰는 기간: 문서 헤더의 계획 기간, 없으면 실적 기간. */
+    private fun planPeriod(row: MyWeeklyRow, resultPeriod: DateRange): DateRange =
+        row.header.plan.period ?: resultPeriod
+
     /** 올해 ISO [week] 주차의 월~금. */
     private fun weekdayRange(week: Int): DateRange {
         val monday = isoWeekMonday(today().year, week)
@@ -448,6 +514,7 @@ class WeeklyReportViewModel(
 
     companion object {
         internal const val FALLBACK_NOTE = "요약을 만들지 못해 PR 제목으로 채웠어요"
+        internal const val PLAN_FALLBACK_NOTE = "계획 요약을 만들지 못해 이슈 제목으로 채웠어요"
         const val WEEK_LIST_SIZE = 6
         private const val CACHE_DEBOUNCE_MS = 1_000L
     }
