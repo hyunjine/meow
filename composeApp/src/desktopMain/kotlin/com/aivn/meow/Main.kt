@@ -18,6 +18,7 @@ import com.aivn.meow.notify.MacNotifier
 import com.aivn.meow.notify.isMacOs
 import com.aivn.meow.schedule.openOutlookCalendar
 import com.aivn.meow.ui.MeowNotice
+import com.aivn.meow.ui.markdown.githubMarkdownToPlainText
 import io.ktor.client.engine.cio.CIO
 import java.awt.Desktop
 import java.net.URI
@@ -130,7 +131,7 @@ private fun MeowNotice.url(): String = when (this) {
 /** 새 댓글 항목의 작성자(없으면 detail "@작성자 님의 댓글")와 body(댓글 전문)로 "@작성자: 앞부분". 데이터에 있는 만큼만 붙인다. */
 private fun commentPreview(item: SectionItem): String {
     val commenter = item.comment?.commenter?.let { "@$it" } ?: item.detail?.removeSuffix(" 님의 댓글")
-    val text = item.body?.replace(Regex("\\s+"), " ")?.trim()?.takeIf { it.isNotEmpty() }
+    val text = item.body?.let(::githubMarkdownToPlainText)?.replace(Regex("\\s+"), " ")?.trim()?.takeIf { it.isNotEmpty() }
         ?.let { if (it.length > COMMENT_PREVIEW_LENGTH) it.take(COMMENT_PREVIEW_LENGTH) + "…" else it }
     val line = listOfNotNull(commenter, text).joinToString(": ")
     return if (line.isEmpty()) "" else "\n$line"

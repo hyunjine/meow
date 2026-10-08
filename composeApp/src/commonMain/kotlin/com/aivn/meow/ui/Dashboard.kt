@@ -22,6 +22,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +30,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -90,19 +93,27 @@ private fun DashboardContent(
     orgRepos: List<String>?,
     onToggleFavorite: (String) -> Unit,
 ) {
+    // #119 카드 본문(마크다운) 속 링크도 앱의 onOpenUrl 로 연다.
+    val uriHandler = remember(onOpenUrl) {
+        object : UriHandler {
+            override fun openUri(uri: String) = onOpenUrl(uri)
+        }
+    }
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val bodyWidth = pageBodyWidth(maxWidth)
-        DashboardBody(
-            state = state,
-            // 본문이 좁으면 사이드바를 숨기고 메인만 보여준다
-            showSidebar = bodyWidth >= SidebarMinBodyWidth,
-            onRefresh = onRefresh,
-            onOpenPr = onOpenPr,
-            onOpenUrl = onOpenUrl,
-            favoriteRepos = favoriteRepos,
-            orgRepos = orgRepos,
-            onToggleFavorite = onToggleFavorite,
-        )
+        CompositionLocalProvider(LocalUriHandler provides uriHandler) {
+            DashboardBody(
+                state = state,
+                // 본문이 좁으면 사이드바를 숨기고 메인만 보여준다
+                showSidebar = bodyWidth >= SidebarMinBodyWidth,
+                onRefresh = onRefresh,
+                onOpenPr = onOpenPr,
+                onOpenUrl = onOpenUrl,
+                favoriteRepos = favoriteRepos,
+                orgRepos = orgRepos,
+                onToggleFavorite = onToggleFavorite,
+            )
+        }
     }
 }
 
