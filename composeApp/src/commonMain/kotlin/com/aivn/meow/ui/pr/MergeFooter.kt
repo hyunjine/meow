@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Merge
@@ -42,7 +43,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -155,14 +158,16 @@ class MergeController(
         entries[url]?.let { entries[url] = it.copy(chosenMethod = method) }
     }
 
-    fun merge(url: String, method: MergeMethod) {
+    /** [message] 는 MERGE / SQUASH 의 커밋 제목 · 내용. REBASE 면 null. */
+    fun merge(url: String, method: MergeMethod, message: MergeCommitMessage? = null) {
         val current = entries[url] ?: return
         val pr = (current.load as? MergeLoad.Loaded)?.pr ?: return
         if (current.action == MergeAction.Merging || current.action == MergeAction.Merged) return
         entries[url] = current.copy(action = MergeAction.Merging)
         scope.launch {
             val failure = try {
-                client.mergePullRequest(pr.id, method.name)
+                val commit = message?.takeIf { method != MergeMethod.REBASE }
+                client.mergePullRequest(pr.id, method.name, commit?.title, commit?.body.orEmpty())
                 null
             } catch (e: CancellationException) {
                 throw e
@@ -272,14 +277,16 @@ fun MergeFooter(prUrl: String, prNumber: Int, prTitle: String, modifier: Modifie
         }
     }
 
-    if (confirming && method != null) {
-        ConfirmMergeDialog(
-            number = prNumber,
-            title = pr?.title ?: prTitle,
+    if (confirming && method != null && pr != null) {
+        MergeDialog(
+            pr = pr,
+            title = pr.title.ifEmpty { prTitle },
             method = method,
-            onConfirm = {
+            allowed = allowed,
+            onChoose = { controller.chooseMethod(prUrl, it) },
+            onConfirm = { chosen, message ->
                 confirming = false
-                controller.merge(prUrl, method)
+                controller.merge(prUrl, chosen, message)
             },
             onDismiss = { confirming = false },
         )
@@ -336,38 +343,13 @@ private fun SplitMergeButton(
             ) {
                 Text(text = "▾", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
-            DropdownMenu(
+            MergeMethodMenu(
                 expanded = menuOpen,
-                onDismissRequest = { menuOpen = false },
-                shape = RoundedCornerShape(14.dp),
-                containerColor = MeowColors.Surface,
-                border = BorderStroke(1.dp, MeowColors.GlassBorder),
-                tonalElevation = 0.dp,
-                shadowElevation = 6.dp,
-            ) {
-                allowed.forEach { option ->
-                    val selected = option == method
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = "${option.label} 머지",
-                                style = MeowType.Meta,
-                                color = if (selected) MergeGreen else MeowColors.TextPrimary,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        },
-                        trailingIcon = if (selected) {
-                            { Icon(Icons.Default.Check, null, tint = MergeGreen, modifier = Modifier.size(16.dp)) }
-                        } else {
-                            null
-                        },
-                        onClick = {
-                            onChoose(option)
-                            menuOpen = false
-                        },
-                    )
-                }
-            }
+                onDismiss = { menuOpen = false },
+                allowed = allowed,
+                method = method,
+                onChoose = onChoose,
+            )
         }
     }
 }
@@ -382,16 +364,91 @@ private object FullWindowPosition : PopupPositionProvider {
     ): IntOffset = IntOffset.Zero
 }
 
+/** 허용된 머지 방식 목록. 고른 방식에 초록 체크. */
 @Composable
-private fun ConfirmMergeDialog(
-    number: Int,
+private fun MergeMethodMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    allowed: List<MergeMethod>,
+    method: MergeMethod?,
+    onChoose: (MergeMethod) -> Unit,
+) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(14.dp),
+        containerColor = MeowColors.Surface,
+        border = BorderStroke(1.dp, MeowColors.GlassBorder),
+        tonalElevation = 0.dp,
+        shadowElevation = 6.dp,
+    ) {
+        allowed.forEach { option ->
+            val selected = option == method
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = "${option.label} 머지",
+                        style = MeowType.Meta,
+                        color = if (selected) MergeGreen else MeowColors.TextPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                },
+                trailingIcon = if (selected) {
+                    { Icon(Icons.Default.Check, null, tint = MergeGreen, modifier = Modifier.size(16.dp)) }
+                } else {
+                    null
+                },
+                onClick = {
+                    onChoose(option)
+                    onDismiss()
+                },
+            )
+        }
+    }
+}
+
+/**
+ * GitHub 머지 박스처럼 방식 · 커밋 제목 · 내용을 정하고 머지한다.
+ * 제목 · 내용은 레포 설정에 따른 기본값으로 채우고, 방식을 바꾸면 사용자가 고치지 않은 칸만 다시 채운다.
+ * Enter 로는 제출하지 않고 ⌘Enter 로 머지, Esc 로 닫는다.
+ */
+@Composable
+private fun MergeDialog(
+    pr: MergeStateNode,
     title: String,
     method: MergeMethod,
-    onConfirm: () -> Unit,
+    allowed: List<MergeMethod>,
+    onChoose: (MergeMethod) -> Unit,
+    onConfirm: (MergeMethod, MergeCommitMessage?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
+    val initial = remember { defaultMergeMessage(pr, method) }
+    var commitTitle by remember { mutableStateOf(initial?.title.orEmpty()) }
+    var commitBody by remember { mutableStateOf(initial?.body.orEmpty()) }
+    var titleEdited by remember { mutableStateOf(false) }
+    var bodyEdited by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
+
+    // 방식이 바뀌면 손대지 않은 칸만 그 방식의 기본값으로 다시 채운다.
+    var filledFor by remember { mutableStateOf(method) }
+    if (filledFor != method) {
+        filledFor = method
+        defaultMergeMessage(pr, method)?.let { defaults ->
+            if (!titleEdited) commitTitle = defaults.title
+            if (!bodyEdited) commitBody = defaults.body
+        }
+    }
+
+    val hasMessage = method != MergeMethod.REBASE
+    val canMerge = !hasMessage || commitTitle.isNotBlank()
+    val submit = {
+        if (canMerge) onConfirm(method, if (hasMessage) MergeCommitMessage(commitTitle.trim(), commitBody) else null)
+    }
+
+    val boxFocus = remember { FocusRequester() }
+    val titleFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { if (hasMessage) titleFocus.requestFocus() else boxFocus.requestFocus() }
+
     Popup(
         popupPositionProvider = FullWindowPosition,
         onDismissRequest = onDismiss,
@@ -404,47 +461,176 @@ private fun ConfirmMergeDialog(
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss)
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                    when (event.key) {
-                        Key.Escape -> {
+                    when {
+                        event.key == Key.Escape -> {
                             onDismiss()
+                            true
+                        }
+                        event.isMetaPressed && (event.key == Key.Enter || event.key == Key.NumPadEnter) -> {
+                            submit()
                             true
                         }
                         else -> false
                     }
                 }
-                .focusRequester(focus)
-                .focusTarget(),
+                .focusRequester(boxFocus)
+                .focusTarget()
+                .padding(24.dp),
             contentAlignment = Alignment.Center,
         ) {
             val shape = RoundedCornerShape(20.dp)
             Column(
                 modifier = Modifier
-                    .widthIn(max = 420.dp)
+                    .widthIn(max = 560.dp)
                     .shadow(elevation = 32.dp, shape = shape)
                     .background(MeowColors.Surface, shape)
                     // 카드 안 클릭이 dim 으로 전달돼 닫히지 않도록 소비한다
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
                     .padding(horizontal = 24.dp, vertical = 22.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Text(
-                    text = "PR #$number 을(를) ${method.label} 으로 머지할까요?",
-                    color = MeowColors.TextPrimary,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(text = title, style = MeowType.Body, color = MeowColors.TextSecondary)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
-                    DialogButton(text = "취소", filled = false, onClick = onDismiss)
-                    DialogButton(text = "머지", filled = true, onClick = onConfirm)
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "PR #${pr.number} 머지",
+                        color = MeowColors.TextPrimary,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = title,
+                        style = MeowType.Body,
+                        color = MeowColors.TextSecondary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(text = "머지 방식", style = MeowType.Meta, color = MeowColors.TextSecondary)
+                    Box {
+                        val chipShape = RoundedCornerShape(10.dp)
+                        val canChoose = allowed.size > 1
+                        Row(
+                            modifier = Modifier
+                                .clip(chipShape)
+                                .background(FooterBg)
+                                .border(1.dp, MergeGreen.copy(alpha = 0.35f), chipShape)
+                                .clickable(enabled = canChoose) { menuOpen = true }
+                                .padding(horizontal = 12.dp, vertical = 7.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Filled.Merge, contentDescription = null, tint = MergeGreen, modifier = Modifier.size(14.dp))
+                            Text(text = method.label, style = MeowType.Meta, color = MergeGreen, fontWeight = FontWeight.SemiBold)
+                            if (canChoose) {
+                                Text(text = "▾", color = MergeGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        MergeMethodMenu(
+                            expanded = menuOpen,
+                            onDismiss = { menuOpen = false },
+                            allowed = allowed,
+                            method = method,
+                            onChoose = onChoose,
+                        )
+                    }
+                }
+
+                if (hasMessage) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(text = "커밋 제목", style = MeowType.Meta, color = MeowColors.TextSecondary)
+                        MessageField(
+                            value = commitTitle,
+                            onValueChange = {
+                                commitTitle = it
+                                titleEdited = true
+                            },
+                            placeholder = "커밋 제목을 입력해 주세요",
+                            singleLine = true,
+                            modifier = Modifier.focusRequester(titleFocus),
+                        )
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(text = "커밋 내용", style = MeowType.Meta, color = MeowColors.TextSecondary)
+                        MessageField(
+                            value = commitBody,
+                            onValueChange = {
+                                commitBody = it
+                                bodyEdited = true
+                            },
+                            placeholder = "선택 사항",
+                            singleLine = false,
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "Rebase 는 커밋을 그대로 옮겨서 메시지를 바꿀 수 없어요",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MeowColors.Background)
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        style = MeowType.Meta,
+                        color = MeowColors.TextSecondary,
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "⌘Enter 머지 · Esc 닫기",
+                        modifier = Modifier.weight(1f),
+                        style = MeowType.Badge,
+                        color = MeowColors.TextTertiary,
+                    )
+                    DialogButton(text = "취소", filled = false, enabled = true, onClick = onDismiss)
+                    DialogButton(text = "${method.label} 머지", filled = true, enabled = canMerge, onClick = submit)
                 }
             }
         }
     }
 }
 
+/** 주간 보고 입력칸과 같은 모양 (배경 칸 + 12dp 모서리). 내용 칸은 고정폭 글꼴 · 여러 줄 · 넘치면 스크롤. */
 @Composable
-private fun DialogButton(text: String, filled: Boolean, onClick: () -> Unit) {
+private fun MessageField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    singleLine: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val style = if (singleLine) MeowType.Body else MeowType.Code
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier.fillMaxWidth(),
+        singleLine = singleLine,
+        minLines = if (singleLine) 1 else 6,
+        maxLines = if (singleLine) 1 else 12,
+        textStyle = style.copy(color = MeowColors.TextPrimary),
+        cursorBrush = SolidColor(MeowColors.Brand),
+        decorationBox = { field ->
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MeowColors.Background)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            ) {
+                if (value.isEmpty()) {
+                    Text(placeholder, style = style, color = MeowColors.TextTertiary)
+                }
+                field()
+            }
+        },
+    )
+}
+
+@Composable
+private fun DialogButton(text: String, filled: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
     Text(
         text = text,
@@ -452,12 +638,12 @@ private fun DialogButton(text: String, filled: Boolean, onClick: () -> Unit) {
             .clip(shape)
             .then(
                 if (filled) {
-                    Modifier.background(MergeGreen)
+                    Modifier.background(if (enabled) MergeGreen else DisabledGrey)
                 } else {
                     Modifier.background(MeowColors.Surface).border(1.dp, MeowColors.GlassBorder, shape)
                 },
             )
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 11.dp),
         style = MeowType.Meta,
         color = if (filled) Color.White else MeowColors.TextPrimary,
