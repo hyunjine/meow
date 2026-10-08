@@ -1,12 +1,12 @@
 package com.aivn.meow.cafeteria
 
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.DateTimeUnit
-import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlin.time.Instant
 
 /** 한 장의 사진. 썸네일 · 카드 · 라이트박스용 URL. */
 data class CafeteriaPhoto(val medium: String, val large: String, val xlarge: String, val width: Int, val height: Int)

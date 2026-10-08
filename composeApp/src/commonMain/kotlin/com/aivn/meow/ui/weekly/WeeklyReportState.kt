@@ -9,36 +9,46 @@ import com.aivn.meow.weekly.DateRange
 import com.aivn.meow.weekly.MyWeeklyRow
 import com.aivn.meow.weekly.ThisWeekDoc
 import com.aivn.meow.weekly.WeekDoc
+import com.aivn.meow.weekly.WeeklyDraft
 import com.aivn.meow.weekly.WeeklyDraftBuilder
+import com.aivn.meow.weekly.WeeklyPlanDraft
+import com.aivn.meow.weekly.fallbackDraftLines
+import com.aivn.meow.weekly.fallbackPlanLines
 import com.aivn.meow.weekly.WeeklyReportRepository
 import com.aivn.meow.weekly.isoWeekNumber
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
-import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
+import kotlinx.datetime.number
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.todayIn
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 /** 마지막 동기화 결과. [doc] 이 null 이면 이번 주 문서를 못 찾음. [failed] 면 동기화 자체가 실패. */
 data class WeeklySyncInfo(val at: Instant, val doc: ThisWeekDoc?, val failed: Boolean = false)
 
 sealed interface WeeklyContent {
-    /** 앱 시작 후 아직 동기화하지 않음(자동 동기화는 하지 않는다). */
+    /** 아직 동기화 결과가 없음(보관한 결과도 없음). */
     data object Idle : WeeklyContent
 
     /** 이번 주 메일 · 문서를 아직 못 찾음. */
@@ -49,6 +59,7 @@ sealed interface WeeklyContent {
     /**
      * 이번 주 문서의 내 행. [resultText] · [planText] 는 편집 중인 텍스트(줄 = 셀 문단).
      * [resultIsDraft] 면 실적 칸을 PR 초안으로 채운 상태. [eTag] 는 저장 시 넘길 읽은 시점 버전.
+     * [draftLines] 는 동기화 때 만든 PR 초안. [edited] 면 사용자가 텍스트를 바꾼 뒤 아직 반영하지 않았다.
      */
     data class Found(
         val thisWeek: ThisWeekDoc,
@@ -56,8 +67,19 @@ sealed interface WeeklyContent {
         val resultText: String,
         val planText: String,
         val resultIsDraft: Boolean,
+        val draftLines: List<String>? = null,
+        val edited: Boolean = false,
         val draftError: String? = null,
+        /** 요약에 실패해 PR 제목으로 채웠을 때의 안내. */
+        val draftNote: String? = null,
         val drafting: Boolean = false,
+        /** 계획 칸을 열린 이슈 · PR 초안으로 채운 상태. */
+        val planIsDraft: Boolean = false,
+        /** 동기화 때 만든 계획 초안. */
+        val planDraftLines: List<String>? = null,
+        val planDraftError: String? = null,
+        /** 계획 요약에 실패해 이슈 제목으로 채웠을 때의 안내. */
+        val planDraftNote: String? = null,
         val eTag: String?,
         val saving: Boolean = false,
         val saveMessage: SaveMessage? = null,
@@ -71,6 +93,8 @@ enum class WeekRowStatus { Done, Empty }
 
 data class WeeklyUiState(
     val reportName: String? = null,
+    /** '이름 바꾸기' 로 이름 입력 중. 새 이름을 저장하기 전까지 [reportName] 은 그대로 둔다(취소하면 돌아간다). */
+    val editingName: Boolean = false,
     val syncing: Boolean = false,
     val lastSync: WeeklySyncInfo? = null,
     val content: WeeklyContent = WeeklyContent.Idle,
@@ -79,31 +103,66 @@ data class WeeklyUiState(
     /** itemId → 내 행 상태. 이번 주 문서는 [WeeklyContent.Found] 로 판단한다. */
     val weekStatus: Map<String, WeekRowStatus> = emptyMap(),
     val currentWeek: Int,
+    /** itemId → 지난 주차 문서에서 읽은 내 행(상태 확인 · 선택 시 읽은 것). 읽기 전용 보기에 쓴다. */
+    val pastRows: Map<String, MyWeeklyRow> = emptyMap(),
+    /** 목록에서 고른 지난 주차. null 이면 이번 주 화면. */
+    val selectedPast: PastWeekSelection? = null,
+)
+
+/** 고른 지난 주차. [row] 를 아직 못 읽었으면 [loading] 중이거나 [error] 가 있다. */
+data class PastWeekSelection(
+    val doc: WeekDoc,
+    val loading: Boolean = false,
+    val error: String? = null,
 )
 
 /**
  * 주간 보고 화면 상태. App 수준에서 만들어 화면 전환에도 상태(편집 중 텍스트 포함)를 유지한다.
- * 동기화는 사용자가 누를 때만 한다.
+ * 마지막 동기화 결과는 [cacheStore] 에 보관해 다시 켰을 때 바로 보여 주고, 연결되면 한 번 자동으로 동기화한다(읽기만).
+ * 문서에 반영하기는 사용자가 확인한 뒤에만 한다.
  */
+@OptIn(FlowPreview::class)
 class WeeklyReportViewModel(
     val auth: MsAuth,
     private val repository: WeeklyReportRepository,
     private val draftBuilder: WeeklyDraftBuilder,
     private val scope: CoroutineScope,
     private val clock: Clock = Clock.System,
+    private val cacheStore: WeeklyCacheStore = WeeklyCacheStore.File,
 ) {
     private val timeZone = TimeZone.of("Asia/Seoul")
     private val _state = MutableStateFlow(
-        WeeklyUiState(reportName = WeeklyReportRepository.loadReportName(), currentWeek = today().isoWeekNumber()),
+        WeeklyUiState(reportName = WeeklyReportRepository.loadReportName(), currentWeek = today().isoWeekNumber())
+            .restoredFrom(decodeWeeklyCache(runCatching { cacheStore.load() }.getOrNull())),
     )
     val state: StateFlow<WeeklyUiState> = _state.asStateFlow()
 
+    init {
+        // 결과 · 편집이 바뀌면 1초 뒤 보관한다(동기화 직후에는 바로 저장한다).
+        scope.launch {
+            _state.map { it.toCache() }
+                .distinctUntilChanged()
+                .drop(1)
+                .debounce(CACHE_DEBOUNCE_MS)
+                .collect { persist(it) }
+        }
+    }
+
     private var syncJob: Job? = null
     private var statusJob: Job? = null
+    private var pastJob: Job? = null
 
-    /** 앱 시작 시 저장된 계정으로 조용히 다시 연결한다(동기화는 하지 않음). */
+    /** 앱 시작 시 저장된 계정으로 조용히 다시 연결하고, 연결되고 이름이 있으면 한 번 동기화한다(문서에 쓰지는 않음). */
     fun start() {
-        scope.launch { auth.restore() }
+        scope.launch {
+            if (auth.restore() is MsAuthState.Connected) sync()
+        }
+    }
+
+    /** 드로워로 화면에 들어올 때: 동기화 중 · 반영 중 · 연결 안 됨 · 이름 없음이면 건너뛴다. */
+    fun syncIfIdle() {
+        if ((_state.value.content as? WeeklyContent.Found)?.saving == true) return
+        sync()
     }
 
     fun signIn() {
@@ -114,6 +173,7 @@ class WeeklyReportViewModel(
     fun signOut() {
         syncJob?.cancel()
         statusJob?.cancel()
+        pastJob?.cancel()
         scope.launch {
             auth.signOut()
             _state.update { WeeklyUiState(reportName = it.reportName, currentWeek = it.currentWeek) }
@@ -123,74 +183,191 @@ class WeeklyReportViewModel(
     fun saveReportName(name: String) {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return
+        if (trimmed == _state.value.reportName) {
+            _state.update { it.copy(editingName = false) }
+            return
+        }
         WeeklyReportRepository.saveReportName(trimmed)
         // 이름이 바뀌면 이전 이름으로 읽은 행은 버린다.
         _state.update { WeeklyUiState(reportName = trimmed, currentWeek = it.currentWeek) }
     }
 
-    fun clearReportName() {
-        _state.update { it.copy(reportName = null) }
+    /** 이름 입력 화면으로 간다. 저장된 이름은 새 이름을 저장할 때까지 지우지 않는다. */
+    fun startEditingName() {
+        _state.update { it.copy(editingName = true) }
+    }
+
+    /** 이름 입력을 그만두고 저장돼 있던 이름으로 돌아간다. 저장된 이름이 없으면 그대로 입력 화면에 둔다. */
+    fun cancelEditingName() {
+        _state.update { if (it.reportName != null) it.copy(editingName = false) else it }
     }
 
     fun sync() {
         val name = _state.value.reportName ?: return
         if (_state.value.syncing || auth.state.value !is MsAuthState.Connected) return
         statusJob?.cancel()
-        _state.update { it.copy(syncing = true, currentWeek = today().isoWeekNumber()) }
+        pastJob?.cancel()
+        _state.update { it.copy(syncing = true, currentWeek = today().isoWeekNumber(), selectedPast = null) }
         syncJob = scope.launch {
             try {
                 val today = today()
                 val thisWeek = io { repository.findThisWeekDoc(today) }
                 val weeks = io { runCatching { repository.listWeekDocs() }.getOrDefault(emptyList()) }
                     .take(WEEK_LIST_SIZE)
-                val content = if (thisWeek == null) WeeklyContent.NotFound else loadFound(thisWeek, name)
+                val loaded = if (thisWeek == null) WeeklyContent.NotFound else loadFound(thisWeek, name)
                 _state.update {
+                    // 같은 문서 버전에 대해 사용자가 고쳐 둔 텍스트는 덮어쓰지 않는다.
+                    val content = if (loaded is WeeklyContent.Found) mergeUnsavedEdits(it.content, loaded) else loaded
+                    val ids = weeks.map { w -> w.itemId }.toSet()
                     it.copy(
                         syncing = false,
                         lastSync = WeeklySyncInfo(clock.now(), thisWeek),
                         content = content,
                         weeks = weeks,
-                        weekStatus = emptyMap(),
+                        // 다시 확인할 때까지 이전 상태를 보여 준다.
+                        weekStatus = it.weekStatus.filterKeys { id -> id in ids },
+                        pastRows = it.pastRows.filterKeys { id -> id in ids },
+                        selectedPast = null,
                     )
                 }
+                persist(_state.value.toCache())
                 loadPastStatuses(weeks, thisWeek, name)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 _state.update {
+                    val previous = it.content
                     it.copy(
                         syncing = false,
                         lastSync = WeeklySyncInfo(clock.now(), it.lastSync?.doc, failed = true),
-                        content = WeeklyContent.Failed(e.toUserMessage()),
+                        // 보이던 내 행(편집 중 텍스트 포함)은 그대로 두고 실패만 알린다.
+                        content = if (previous is WeeklyContent.Found) {
+                            previous.copy(saveMessage = SaveMessage("동기화하지 못했어요: ${e.toUserMessage()}", ok = false))
+                        } else {
+                            WeeklyContent.Failed(e.toUserMessage())
+                        },
                     )
                 }
             }
         }
     }
 
-    fun editResult(text: String) = updateFound { it.copy(resultText = text, saveMessage = null) }
+    /**
+     * 지난 주차를 골라 오른쪽에 내 행을 읽기 전용으로 보여 준다. 상태 확인 때 읽어 둔 행이 있으면 그대로 쓰고,
+     * 없으면(아직 확인 전 · 실패) 그 문서만 읽는다. 문서에는 쓰지 않는다.
+     */
+    fun selectPastWeek(doc: WeekDoc) {
+        if (_state.value.selectedPast?.doc?.itemId == doc.itemId && _state.value.selectedPast?.error == null) return
+        pastJob?.cancel()
+        if (doc.itemId in _state.value.pastRows) {
+            _state.update { it.copy(selectedPast = PastWeekSelection(doc)) }
+            return
+        }
+        loadPastRow(doc)
+    }
 
-    fun editPlan(text: String) = updateFound { it.copy(planText = text, saveMessage = null) }
+    /** 고른 지난 주차 읽기를 다시 시도한다. */
+    fun retryPastWeek() {
+        val selected = _state.value.selectedPast ?: return
+        if (selected.loading) return
+        loadPastRow(selected.doc)
+    }
 
-    /** 실적 칸을 PR 초안으로 다시 채운다(편집 중이던 실적 텍스트는 덮어쓴다). */
+    /** 이번 주 화면으로 돌아간다. */
+    fun clearPastWeek() {
+        pastJob?.cancel()
+        _state.update { it.copy(selectedPast = null) }
+    }
+
+    private fun loadPastRow(doc: WeekDoc) {
+        val name = _state.value.reportName ?: return
+        _state.update { it.copy(selectedPast = PastWeekSelection(doc, loading = true)) }
+        pastJob = scope.launch {
+            try {
+                val row = io { repository.readMyRow(doc, name) }
+                _state.update { s ->
+                    val status = row.status()
+                    s.copy(
+                        pastRows = s.pastRows + (doc.itemId to row),
+                        weekStatus = if (status != null) s.weekStatus + (doc.itemId to status) else s.weekStatus,
+                        selectedPast = if (s.selectedPast?.doc?.itemId == doc.itemId) PastWeekSelection(doc) else s.selectedPast,
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { s ->
+                    if (s.selectedPast?.doc?.itemId != doc.itemId) return@update s
+                    s.copy(selectedPast = PastWeekSelection(doc, error = "문서를 읽지 못했어요: ${e.toUserMessage()}"))
+                }
+            }
+        }
+    }
+
+    fun editResult(text: String) = updateFound { it.copy(resultText = text, edited = true, saveMessage = null) }
+
+    fun editPlan(text: String) = updateFound { it.copy(planText = text, edited = true, saveMessage = null) }
+
+    /**
+     * 실적 칸은 머지한 PR 초안, 계획 칸은 열린 이슈 · PR 초안으로 다시 채운다(편집 중이던 두 칸 텍스트는 덮어쓴다).
+     * 두 요약은 함께 돌린다. 한쪽이 실패하면 그 칸은 그대로 두고 오류만 알린다.
+     */
     fun regenerateDraft() {
         val found = _state.value.content as? WeeklyContent.Found ?: return
         if (found.drafting) return
-        updateFound { it.copy(drafting = true, draftError = null, saveMessage = null) }
+        updateFound {
+            it.copy(drafting = true, draftError = null, draftNote = null, planDraftError = null, planDraftNote = null, saveMessage = null)
+        }
         scope.launch {
-            val result = runCatching { io { draftBuilder.buildResultDraft(resultPeriod(found.row, found.thisWeek.doc)).lines } }
+            val period = resultPeriod(found.row, found.thisWeek.doc)
+            val planPeriod = planPeriod(found.row, period)
+            val (result, plan) = withContext(Dispatchers.Default) {
+                val resultAsync = async {
+                    runCatching { draftBuilder.summarize(period, draftBuilder.fetchResultPrs(period), forceRefresh = true) }
+                }
+                val planAsync = async {
+                    runCatching { draftBuilder.summarizePlan(planPeriod, draftBuilder.fetchPlanItems(), forceRefresh = true) }
+                }
+                resultAsync.await() to planAsync.await()
+            }
             result.exceptionOrNull()?.let { if (it is CancellationException) throw it }
+            plan.exceptionOrNull()?.let { if (it is CancellationException) throw it }
             updateFound { current ->
-                result.fold(
-                    onSuccess = { lines ->
+                val withResult = result.fold(
+                    onSuccess = { draft ->
+                        val lines = draft.lines
                         if (lines.isEmpty()) {
-                            current.copy(drafting = false, draftError = "실적 기간에 머지한 PR 이 없어요")
+                            current.copy(draftError = "실적 기간에 머지한 PR 이 없어요")
                         } else {
-                            current.copy(drafting = false, resultText = lines.joinToString("\n"), resultIsDraft = true)
+                            current.copy(
+                                resultText = lines.joinToString("\n"),
+                                resultIsDraft = true,
+                                draftLines = lines,
+                                draftNote = if (draft.summarized) null else FALLBACK_NOTE,
+                                edited = true,
+                            )
                         }
                     },
-                    onFailure = { current.copy(drafting = false, draftError = "PR 초안을 만들지 못했어요: ${it.toUserMessage()}") },
+                    onFailure = { current.copy(draftError = "PR 초안을 만들지 못했어요: ${it.toUserMessage()}") },
                 )
+                val withPlan = plan.fold(
+                    onSuccess = { draft ->
+                        val lines = draft.lines
+                        if (lines.isEmpty()) {
+                            withResult.copy(planDraftError = "나에게 할당된 열린 이슈 · PR 이 없어요")
+                        } else {
+                            withResult.copy(
+                                planText = lines.joinToString("\n"),
+                                planIsDraft = true,
+                                planDraftLines = lines,
+                                planDraftNote = if (draft.summarized) null else PLAN_FALLBACK_NOTE,
+                                edited = true,
+                            )
+                        }
+                    },
+                    onFailure = { withResult.copy(planDraftError = "계획 초안을 만들지 못했어요: ${it.toUserMessage()}") },
+                )
+                withPlan.copy(drafting = false)
             }
         }
     }
@@ -211,6 +388,10 @@ class WeeklyReportViewModel(
                         saving = false,
                         row = it.row.copy(results = results, plans = plans),
                         resultIsDraft = false,
+                        draftNote = null,
+                        planIsDraft = false,
+                        planDraftNote = null,
+                        edited = false,
                         eTag = newETag.ifEmpty { null },
                         saveMessage = SaveMessage("반영 완료 · ${formatTime(clock.now())}", ok = true),
                     )
@@ -228,26 +409,55 @@ class WeeklyReportViewModel(
         }
     }
 
-    /** 내 행 읽기와 PR 초안을 함께 시작한다. 초안 기간은 우선 ISO 주차(월~금)로 잡고, 문서 헤더 기간이 다르면 다시 만든다. */
+    /**
+     * 내 행 읽기 · PR 초안 · 계획 후보(열린 이슈 · PR) 조회를 함께 시작한다. 초안 기간은 우선 ISO 주차(월~금)로 잡고,
+     * 문서 헤더 기간이 다르면 다시 만든다. 실적 · 계획 요약도 함께 돌린다.
+     */
     private suspend fun loadFound(thisWeek: ThisWeekDoc, name: String): WeeklyContent.Found = withContext(Dispatchers.Default) {
         val guessed = weekdayRange(thisWeek.doc.week)
-        val draftAsync = async { runCatching { draftBuilder.buildResultDraft(guessed).lines } }
+        val prsAsync = async { runCatching { draftBuilder.fetchResultPrs(guessed) } }
+        val planItemsAsync = async { runCatching { draftBuilder.fetchPlanItems() } }
         val row = repository.readMyRow(thisWeek.doc, name)
         val headerPeriod = row.header.result.period
-        var draft = draftAsync.await()
-        if (headerPeriod != null && headerPeriod != guessed) {
-            draft = runCatching { draftBuilder.buildResultDraft(headerPeriod).lines }
+        var prs = prsAsync.await()
+        val period = if (headerPeriod != null && headerPeriod != guessed) headerPeriod else guessed
+        if (period != guessed) prs = runCatching { draftBuilder.fetchResultPrs(period) }
+        prs.exceptionOrNull()?.let { if (it is CancellationException) throw it }
+        // 칸이 비어 채울 때만 요약한다(이미 쓴 칸이면 제목 초안만 참고로 둔다).
+        val draftAsync = async {
+            prs.getOrNull()?.let { list ->
+                if (row.results.isEmpty()) draftBuilder.summarize(period, list)
+                else WeeklyDraft(period, fallbackDraftLines(list), list)
+            }
         }
-        draft.exceptionOrNull()?.let { if (it is CancellationException) throw it }
-        val draftLines = draft.getOrNull()
+        val planItems = planItemsAsync.await()
+        planItems.exceptionOrNull()?.let { if (it is CancellationException) throw it }
+        val planPeriod = planPeriod(row, period)
+        val planDraftAsync = async {
+            planItems.getOrNull()?.let { list ->
+                if (row.plans.isEmpty()) draftBuilder.summarizePlan(planPeriod, list)
+                else WeeklyPlanDraft(fallbackPlanLines(list), list)
+            }
+        }
+        val draft = draftAsync.await()
+        val planDraft = planDraftAsync.await()
+        val draftLines = draft?.lines
         val fillDraft = row.results.isEmpty() && !draftLines.isNullOrEmpty()
+        val planDraftLines = planDraft?.lines
+        val fillPlan = row.plans.isEmpty() && !planDraftLines.isNullOrEmpty()
         WeeklyContent.Found(
             thisWeek = thisWeek,
             row = row,
             resultText = if (fillDraft) draftLines.orEmpty().joinToString("\n") else row.results.joinToString("\n"),
-            planText = row.plans.joinToString("\n"),
+            planText = if (fillPlan) planDraftLines.orEmpty().joinToString("\n") else row.plans.joinToString("\n"),
             resultIsDraft = fillDraft,
-            draftError = draft.exceptionOrNull()?.let { "PR 초안을 만들지 못했어요: ${it.toUserMessage()}" },
+            draftLines = draftLines,
+            draftError = prs.exceptionOrNull()?.let { "PR 초안을 만들지 못했어요: ${it.toUserMessage()}" },
+            draftNote = if (fillDraft && draft?.summarized == false) FALLBACK_NOTE else null,
+            planIsDraft = fillPlan,
+            planDraftLines = planDraftLines,
+            planDraftError = planItems.exceptionOrNull()?.let { "계획 초안을 만들지 못했어요: ${it.toUserMessage()}" },
+            planDraftNote = if (fillPlan && planDraft?.summarized == false) PLAN_FALLBACK_NOTE else null,
             eTag = row.eTag.ifEmpty { null },
         )
     }
@@ -260,15 +470,29 @@ class WeeklyReportViewModel(
                 val row = runCatching { io { repository.readMyRow(doc, name) } }
                     .onFailure { if (it is CancellationException) throw it }
                     .getOrNull() ?: continue
-                if (!row.found) continue
-                val status = if (row.results.isNotEmpty()) WeekRowStatus.Done else WeekRowStatus.Empty
-                _state.update { it.copy(weekStatus = it.weekStatus + (doc.itemId to status)) }
+                val status = row.status()
+                _state.update {
+                    it.copy(
+                        pastRows = it.pastRows + (doc.itemId to row),
+                        weekStatus = if (status != null) it.weekStatus + (doc.itemId to status) else it.weekStatus,
+                    )
+                }
             }
+        }
+    }
+
+    private suspend fun persist(cache: WeeklyCache?) {
+        withContext(Dispatchers.Default) {
+            runCatching { if (cache == null) cacheStore.clear() else cacheStore.save(encodeWeeklyCache(cache)) }
         }
     }
 
     private fun resultPeriod(row: MyWeeklyRow, doc: WeekDoc): DateRange =
         row.header.result.period ?: weekdayRange(doc.week)
+
+    /** 계획 요약 캐시에 쓰는 기간: 문서 헤더의 계획 기간, 없으면 실적 기간. */
+    private fun planPeriod(row: MyWeeklyRow, resultPeriod: DateRange): DateRange =
+        row.header.plan.period ?: resultPeriod
 
     /** 올해 ISO [week] 주차의 월~금. */
     private fun weekdayRange(week: Int): DateRange {
@@ -290,8 +514,18 @@ class WeeklyReportViewModel(
     private suspend fun <T> io(block: suspend () -> T): T = withContext(Dispatchers.Default) { block() }
 
     companion object {
+        internal const val FALLBACK_NOTE = "요약을 만들지 못해 PR 제목으로 채웠어요"
+        internal const val PLAN_FALLBACK_NOTE = "계획 요약을 만들지 못해 이슈 제목으로 채웠어요"
         const val WEEK_LIST_SIZE = 6
+        private const val CACHE_DEBOUNCE_MS = 1_000L
     }
+}
+
+/** 내 행 상태. 표에 내 행이 없으면 null('—'). */
+private fun MyWeeklyRow.status(): WeekRowStatus? = when {
+    !found -> null
+    results.isNotEmpty() -> WeekRowStatus.Done
+    else -> WeekRowStatus.Empty
 }
 
 /** ISO 주차 [week] 의 월요일. 1월 4일이 든 주가 1주차. */
@@ -309,7 +543,7 @@ internal fun formatSyncTime(instant: Instant, now: Instant): String {
     val kst = TimeZone.of("Asia/Seoul")
     val local = instant.toLocalDateTime(kst)
     val time = "${local.hour.toString().padStart(2, '0')}:${local.minute.toString().padStart(2, '0')}"
-    return if (local.date == now.toLocalDateTime(kst).date) "오늘 $time" else "${local.monthNumber}/${local.dayOfMonth} $time"
+    return if (local.date == now.toLocalDateTime(kst).date) "오늘 $time" else "${local.month.number}/${local.day} $time"
 }
 
 private fun Throwable.toUserMessage(): String = when (this) {

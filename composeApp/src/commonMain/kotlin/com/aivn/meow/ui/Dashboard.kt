@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -23,6 +22,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,6 +30,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,15 +49,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aivn.meow.data.DashboardSnapshot
 import com.aivn.meow.data.SectionResult
-import com.aivn.meow.data.colorForRepo
+import com.aivn.meow.config.RepoPrefs
+import com.aivn.meow.data.RepoUniverse
+import com.aivn.meow.data.isOverdue
+import com.aivn.meow.data.onlyCheckedRepos
+import com.aivn.meow.data.repoShortName
 import com.aivn.meow.model.PullRequest
 import com.aivn.meow.model.SectionItem
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
+import com.aivn.meow.ui.common.MeowType
 import com.aivn.meow.ui.common.PageHeader
-import com.aivn.meow.ui.common.PageHorizontalPadding
-import com.aivn.meow.ui.common.PageMaxWidth
-import com.aivn.meow.ui.common.PageVerticalPadding
+import com.aivn.meow.ui.common.pageBodyWidth
+import com.aivn.meow.ui.common.pageContent
 import com.aivn.meow.ui.sections.SectionRow
 import com.aivn.meow.util.formatKst
 import com.aivn.meow.util.formatSyncLabel
@@ -67,9 +73,10 @@ fun Dashboard(
     onRefresh: () -> Unit,
     onOpenPr: (PullRequest) -> Unit,
     onOpenUrl: (String) -> Unit,
-    favoriteRepos: Set<String>,
-    orgRepos: List<String>?,
+    repoPrefs: RepoPrefs,
+    repoUniverse: RepoUniverse?,
     onToggleFavorite: (String) -> Unit,
+    onToggleSidebarRepo: (String) -> Unit,
 ) {
     Box(
         modifier = Modifier.fillMaxSize().background(MeowColors.Background),
@@ -77,7 +84,7 @@ fun Dashboard(
         when (state) {
             is DashboardUiState.Loading -> CenteredLoading("PR 목록을 불러오는 중…")
             is DashboardUiState.Error -> CenteredError(state.failure, onRefresh)
-            is DashboardUiState.Loaded -> DashboardContent(state, onRefresh, onOpenPr, onOpenUrl, favoriteRepos, orgRepos, onToggleFavorite)
+            is DashboardUiState.Loaded -> DashboardContent(state, onRefresh, onOpenPr, onOpenUrl, repoPrefs, repoUniverse, onToggleFavorite, onToggleSidebarRepo)
         }
     }
 }
@@ -88,23 +95,33 @@ private fun DashboardContent(
     onRefresh: () -> Unit,
     onOpenPr: (PullRequest) -> Unit,
     onOpenUrl: (String) -> Unit,
-    favoriteRepos: Set<String>,
-    orgRepos: List<String>?,
+    repoPrefs: RepoPrefs,
+    repoUniverse: RepoUniverse?,
     onToggleFavorite: (String) -> Unit,
+    onToggleSidebarRepo: (String) -> Unit,
 ) {
+    // #119 카드 본문(마크다운) 속 링크도 앱의 onOpenUrl 로 연다.
+    val uriHandler = remember(onOpenUrl) {
+        object : UriHandler {
+            override fun openUri(uri: String) = onOpenUrl(uri)
+        }
+    }
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val bodyWidth = minOf(maxWidth - PageHorizontalPadding * 2, PageMaxWidth)
-        DashboardBody(
-            state = state,
-            // 본문이 좁으면 사이드바를 숨기고 메인만 보여준다
-            showSidebar = bodyWidth >= SidebarMinBodyWidth,
-            onRefresh = onRefresh,
-            onOpenPr = onOpenPr,
-            onOpenUrl = onOpenUrl,
-            favoriteRepos = favoriteRepos,
-            orgRepos = orgRepos,
-            onToggleFavorite = onToggleFavorite,
-        )
+        val bodyWidth = pageBodyWidth(maxWidth)
+        CompositionLocalProvider(LocalUriHandler provides uriHandler) {
+            DashboardBody(
+                state = state,
+                // 본문이 좁으면 사이드바를 숨기고 메인만 보여준다
+                showSidebar = bodyWidth >= SidebarMinBodyWidth,
+                onRefresh = onRefresh,
+                onOpenPr = onOpenPr,
+                onOpenUrl = onOpenUrl,
+                repoPrefs = repoPrefs,
+                repoUniverse = repoUniverse,
+                onToggleFavorite = onToggleFavorite,
+                onToggleSidebarRepo = onToggleSidebarRepo,
+            )
+        }
     }
 }
 
@@ -118,9 +135,10 @@ private fun DashboardBody(
     onRefresh: () -> Unit,
     onOpenPr: (PullRequest) -> Unit,
     onOpenUrl: (String) -> Unit,
-    favoriteRepos: Set<String>,
-    orgRepos: List<String>?,
+    repoPrefs: RepoPrefs,
+    repoUniverse: RepoUniverse?,
     onToggleFavorite: (String) -> Unit,
+    onToggleSidebarRepo: (String) -> Unit,
 ) {
     var sortOption by rememberSaveable(stateSaver = SortOptionSaver) { mutableStateOf(PrSortOption.OLDEST) }
     // 0 = 리뷰 대기 PR, 1.. = 보조 섹션. 앱은 항상 리뷰 대기 PR 탭으로 시작한다.
@@ -130,8 +148,6 @@ private fun DashboardBody(
     var selectedIndex by rememberSaveable { mutableStateOf(-1) }
     // 본문을 펼친 카드 url. 탭 전환 · 새로고침 후에도 같은 url 이면 펼침을 유지한다.
     var expandedUrls by rememberSaveable(stateSaver = StringSetSaver) { mutableStateOf(emptySet<String>()) }
-    // 사이드바에서 고른 레포. null = 전체. 앱은 항상 전체로 시작한다.
-    var selectedRepo by rememberSaveable { mutableStateOf<String?>(null) }
     var showRepoManager by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
 
@@ -156,23 +172,25 @@ private fun DashboardBody(
     val clearedSectionIds = clearedSections.second.takeIf { clearedSections.first == snapshot.fetchedAtIso }.orEmpty()
     fun itemsOf(result: SectionResult) = if (result.section.id in clearedSectionIds) emptyList() else result.items
 
-    // 사이드바 레포 목록: 즐겨찾기 레포를 이름순으로 (항목이 없어도 표시). 개수는 같은 url 을 한 번만 센다.
-    val repoEntries = prs.map { it.repo to it.url } +
-        sections.flatMap { result -> itemsOf(result).map { it.repo to it.url } }
-    val repoCounts = repoEntries.groupBy({ it.first }, { it.second }).mapValues { (_, urls) -> urls.toSet().size }
-    val repos = favoriteRepos
-        .sortedBy { it.lowercase() }
-        .map { name -> RepoInfo(name, colorForRepo(name), repoCounts[name] ?: 0) }
-    // 관리 모달: '작업 중' 요약과 전체 레포 (조직 목록을 못 불러왔으면 작업 중 + 즐겨찾기만)
-    val workingSummaries = repoSummaries(prs.map { it.repo }, sections.map { result -> result to itemsOf(result).map { it.repo } })
-    val managerRepos = ((orgRepos ?: emptyList()) + workingSummaries.keys + favoriteRepos)
-        .distinct()
-        .sortedBy { it.lowercase() }
-    // 사이드바를 숨겼거나 즐겨찾기에서 빠진 레포면 전체를 보여준다
-    val repoFilter = selectedRepo?.takeIf { repo -> showSidebar && repo in favoriteRepos }
-    val visiblePrs = if (repoFilter == null) prs else prs.filter { it.repo == repoFilter }
-    fun visibleItemsOf(result: SectionResult) =
-        if (repoFilter == null) itemsOf(result) else itemsOf(result).filter { it.repo == repoFilter }
+    // #127 사이드바 레포 목록: 즐겨찾기 순서대로 (항목이 없어도 표시). 개수는 같은 url 을 한 번만 센다.
+    val repoEntries = prs.map { it.repoFullName to it.url } +
+        sections.flatMap { result -> itemsOf(result).map { it.repoFullName to it.url } }
+    val repoCounts = repoEntries
+        .groupBy({ it.first.lowercase() }, { it.second })
+        .mapValues { (_, urls) -> urls.toSet().size }
+    val checkedRepos = repoPrefs.checkedFavorites
+    val sidebarRepos = repoPrefs.favorites.map { fullName ->
+        SidebarRepo(
+            fullName = fullName,
+            name = repoShortName(fullName),
+            checked = fullName in repoPrefs.checked,
+            count = repoCounts[fullName.lowercase()] ?: 0,
+        )
+    }
+    // 오른쪽 내용은 사이드바에서 체크한 즐겨찾기 레포의 항목만 (사이드바를 숨겨도 같은 기준). 체크가 없으면 빈 상태.
+    val nothingChecked = checkedRepos.isEmpty()
+    val visiblePrs = prs.onlyCheckedRepos(checkedRepos) { it.repoFullName }
+    fun visibleItemsOf(result: SectionResult) = itemsOf(result).onlyCheckedRepos(checkedRepos) { it.repoFullName }
 
     val tabKeys = listOf(REVIEW_TAB_KEY) + sections.map { it.section.id }
     val allTabUrls = listOf(prs.map { it.url }) + sections.map { result -> itemsOf(result).map { it.url } }
@@ -182,7 +200,7 @@ private fun DashboardBody(
     val currentUrls = tabUrls[tabIndex]
 
     // 탭별로 마지막으로 본 항목 url (메모리만). 탭의 첫 정상 결과와 선택 중인 탭은 본 것으로 기록한다.
-    // 레포를 골라 보는 중이면 화면에 보인 항목만 기존 기록에 더한다.
+    // 선택 중인 탭은 화면에 보인(체크한 레포의) 항목만 기존 기록에 더한다.
     // 화면 전환 후에도 유지해서, 다른 화면에 있는 동안 새로 생긴 항목의 빨간 점이 남게 한다.
     var seenUrls by rememberSaveable(stateSaver = SeenUrlsSaver) { mutableStateOf(emptyMap<String, Set<String>>()) }
     LaunchedEffect(allTabUrls, tabUrls, tabIndex) {
@@ -193,7 +211,7 @@ private fun DashboardBody(
             }
             .associate { i ->
                 val seen = seenUrls[tabKeys[i]]
-                val urls = if (i == tabIndex && repoFilter != null && seen != null) seen + tabUrls[i] else allTabUrls[i]
+                val urls = if (i == tabIndex && seen != null) seen + tabUrls[i] else allTabUrls[i]
                 tabKeys[i] to urls.toSet()
             }
     }
@@ -201,12 +219,7 @@ private fun DashboardBody(
         val seen = seenUrls[tabKeys[i]]
         TabChipInfo(
             label = if (i == 0) "리뷰 대기 PR" else sections[i - 1].section.tabLabel,
-            count = when {
-                i == 0 -> visiblePrs.size
-                sections[i - 1].section.id in clearedSectionIds -> 0
-                repoFilter != null -> visibleItemsOf(sections[i - 1]).size
-                else -> sections[i - 1].totalCount
-            },
+            count = if (i == 0) visiblePrs.size else visibleItemsOf(sections[i - 1]).size,
             hasNew = i != tabIndex && seen != null && tabUrls[i].any { it !in seen },
         )
     }
@@ -216,8 +229,8 @@ private fun DashboardBody(
         selectedIndex = -1
     }
 
-    fun selectRepo(repo: String?) {
-        selectedRepo = repo
+    fun toggleSidebarRepo(repo: String) {
+        onToggleSidebarRepo(repo)
         selectedIndex = -1
     }
 
@@ -236,28 +249,30 @@ private fun DashboardBody(
     // 시작 시 · 관리 모달을 닫은 뒤 키보드 단축키가 다시 동작하도록 포커스를 가져온다
     LaunchedEffect(showRepoManager) { if (!showRepoManager) focusRequester.requestFocus() }
 
+    // #127 통계도 체크한 레포의 리뷰 대기 PR 기준
+    val overdueCount = visiblePrs.count { isOverdue(snapshot.fetchedAtIso, it.updatedAtIso) }
     val stats = listOf(
         StatItem(
             label = "리뷰 대기 PR",
-            value = snapshot.totalOpen.toString(),
+            value = visiblePrs.size.toString(),
             suffix = "건",
-            hint = prs.firstOrNull()?.relativeTime?.let { "가장 오래된 건 · $it" } ?: "대기 중인 PR 없음",
+            hint = visiblePrs.minByOrNull { it.updatedAtIso }?.relativeTime?.let { "가장 오래된 건 · $it" } ?: "대기 중인 PR 없음",
             icon = "📥",
             accent = MeowColors.Brand,
         ),
         StatItem(
             label = "48시간 초과",
-            value = snapshot.overdue48h.toString(),
+            value = overdueCount.toString(),
             suffix = "건",
-            hint = if (snapshot.overdue48h > 0) "우선 처리 권장" else "쾌적한 상태",
+            hint = if (overdueCount > 0) "우선 처리 권장" else "쾌적한 상태",
             icon = "⏱️",
             accent = MeowColors.Warning,
         ),
         StatItem(
             label = "리뷰 요청 총계",
-            value = snapshot.pullRequests.size.toString(),
+            value = visiblePrs.size.toString(),
             suffix = "건",
-            hint = "org: Team-AIVN",
+            hint = "체크한 레포 ${checkedRepos.size}개",
             icon = "📊",
             accent = MeowColors.Success,
         ),
@@ -309,10 +324,7 @@ private fun DashboardBody(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Column(
-                modifier = Modifier
-                    .padding(horizontal = PageHorizontalPadding, vertical = PageVerticalPadding)
-                    .fillMaxWidth()
-                    .widthIn(max = PageMaxWidth),
+                modifier = Modifier.pageContent(),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 PageHeader(
@@ -335,10 +347,8 @@ private fun DashboardBody(
                 ) {
                     if (showSidebar) {
                         RepoSidebar(
-                            repos = repos,
-                            totalCount = repoEntries.distinctBy { it.second }.size,
-                            selectedRepo = repoFilter,
-                            onSelect = ::selectRepo,
+                            repos = sidebarRepos,
+                            onToggle = ::toggleSidebarRepo,
                             onManage = { showRepoManager = true },
                             modifier = Modifier.width(SidebarWidth),
                         )
@@ -364,7 +374,13 @@ private fun DashboardBody(
                                 )
                             }
                         }
-                        if (currentSection == null) {
+                        if (nothingChecked) {
+                            EmptyStateCard(
+                                title = "사이드바에서 레포를 체크해 주세요",
+                                hint = "체크한 즐겨찾기 레포의 항목만 여기에 보여요",
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        } else if (currentSection == null) {
                             if (visiblePrs.isEmpty()) {
                                 EmptyStateCard("리뷰 요청이 없습니다 🎉", "여유로운 하루 보내세요", Modifier.fillMaxWidth())
                             } else {
@@ -395,9 +411,9 @@ private fun DashboardBody(
         }
         if (showRepoManager) {
             RepoManagerDialog(
-                allRepos = managerRepos,
-                summaries = workingSummaries,
-                favorites = favoriteRepos,
+                universe = repoUniverse,
+                fallbackOrg = "Team-AIVN",
+                favorites = repoPrefs.favorites,
                 onToggleFavorite = onToggleFavorite,
                 onDismiss = { showRepoManager = false },
             )
@@ -448,8 +464,8 @@ private fun SectionTabContent(
             result.errorMessage?.let { message ->
                 Text(
                     text = "불러오지 못했어요 · $message",
+                    style = MeowType.Meta,
                     color = MeowColors.Error,
-                    fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -525,14 +541,14 @@ private fun CenteredError(failure: LoadFailure, onRetry: () -> Unit) {
         Text(
             text = failure.message,
             modifier = Modifier.padding(top = 12.dp),
+            style = MeowType.Body,
             color = MeowColors.TextSecondary,
-            fontSize = 13.sp,
         )
         Text(
             text = guide.hint,
             modifier = Modifier.padding(top = 8.dp),
+            style = MeowType.Meta,
             color = MeowColors.TextTertiary,
-            fontSize = 12.sp,
         )
         RetryButton(onClick = onRetry, modifier = Modifier.padding(top = 20.dp))
     }
@@ -557,14 +573,13 @@ private fun RefreshErrorBanner(failure: LoadFailure, onRetry: () -> Unit, modifi
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = "$title · 마지막으로 불러온 목록을 표시 중이에요",
+                style = MeowType.SectionHeading,
                 color = MeowColors.Error,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
             )
             Text(
                 text = detail,
+                style = MeowType.Meta,
                 color = MeowColors.TextSecondary,
-                fontSize = 12.sp,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -585,6 +600,6 @@ private fun RetryButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Default.Refresh, null, tint = MeowColors.Surface, modifier = Modifier.size(14.dp))
-        Text(text = "다시 시도", color = MeowColors.Surface, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text(text = "다시 시도", style = MeowType.Meta, color = MeowColors.Surface, fontWeight = FontWeight.SemiBold)
     }
 }

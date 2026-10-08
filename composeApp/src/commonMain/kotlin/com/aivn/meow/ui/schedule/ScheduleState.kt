@@ -17,15 +17,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
-import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 import kotlinx.datetime.todayIn
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 /** 한 주의 불러오기 결과. */
 sealed interface ScheduleContent {
@@ -104,6 +104,12 @@ class ScheduleViewModel(
 
     /** 보고 있는 주를 다시 불러온다. */
     fun sync() = load(_state.value.weekStart, force = true)
+
+    /** 드로워로 화면에 들어올 때: 불러오는 중이거나 연결 안 됐으면 건너뛴다. */
+    fun syncIfIdle() {
+        if (_state.value.syncing) return
+        sync()
+    }
 
     private fun showWeek(monday: LocalDate) {
         _state.update { it.copy(weekStart = monday) }

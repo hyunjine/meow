@@ -92,7 +92,7 @@ fun App(
             scope = scope,
         )
     }
-    // 구내식당은 인증 없는 카카오 채널 공개 API 를 쓴다.
+    // 구내 식당은 인증 없는 카카오 채널 공개 API 를 쓴다.
     val cafeteriaViewModel = remember {
         CafeteriaViewModel(CafeteriaRepository(KakaoChannelClient(msEngine)), scope)
     }
@@ -108,8 +108,8 @@ fun App(
     }
 
     val state by viewModel.state.collectAsState()
-    val favoriteRepos by viewModel.favorites.collectAsState()
-    val orgRepos by viewModel.orgRepos.collectAsState()
+    val repoPrefs by viewModel.repoPrefs.collectAsState()
+    val repoUniverse by viewModel.repoUniverse.collectAsState()
     val snapshot = (state as? DashboardUiState.Loaded)?.snapshot
     val viewerLogin = snapshot?.viewerLogin
     // 앱은 항상 GitHub 화면으로 시작한다 (선택은 저장하지 않음)
@@ -129,7 +129,16 @@ fun App(
         Row(modifier = Modifier.fillMaxSize()) {
             AppDrawer(
                 selected = screen,
-                onSelect = { screen = it },
+                onSelect = { selected ->
+                    screen = selected
+                    // 드로워로 들어올 때마다(같은 화면 다시 눌러도) 그 화면의 동기화 버튼과 같이 새로 불러온다.
+                    when (selected) {
+                        AppScreen.GITHUB -> viewModel.syncIfIdle()
+                        AppScreen.WEEKLY_REPORT -> weeklyViewModel.syncIfIdle()
+                        AppScreen.SCHEDULE -> scheduleViewModel.syncIfIdle()
+                        AppScreen.CAFETERIA -> cafeteriaViewModel.syncIfIdle()
+                    }
+                },
                 viewerLogin = viewerLogin,
                 viewerInitials = snapshot?.viewerInitials,
                 avatarUrl = snapshot?.avatarUrl,
@@ -142,9 +151,10 @@ fun App(
                             onRefresh = { viewModel.refresh() },
                             onOpenPr = { pr: PullRequest -> onOpenUrl(pr.url) },
                             onOpenUrl = onOpenUrl,
-                            favoriteRepos = favoriteRepos,
-                            orgRepos = orgRepos,
+                            repoPrefs = repoPrefs,
+                            repoUniverse = repoUniverse,
                             onToggleFavorite = viewModel::toggleFavorite,
+                            onToggleSidebarRepo = viewModel::toggleSidebarRepo,
                         )
                         AppScreen.WEEKLY_REPORT -> WeeklyReportScreen(viewModel = weeklyViewModel, onOpenUrl = onOpenUrl)
                         AppScreen.SCHEDULE -> ScheduleScreen(viewModel = scheduleViewModel, onOpenOutlookCalendar = onOpenOutlookCalendar)

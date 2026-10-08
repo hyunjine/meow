@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
+import com.aivn.meow.ui.common.MeowType
 
 data class StatItem(
     val label: String,
@@ -57,8 +58,8 @@ private fun StatCard(stat: StatItem, modifier: Modifier = Modifier) {
         ) {
             Text(
                 text = stat.label,
+                style = MeowType.Meta,
                 color = MeowColors.TextSecondary,
-                fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
             )
@@ -94,9 +95,8 @@ private fun StatCard(stat: StatItem, modifier: Modifier = Modifier) {
 
         Text(
             text = stat.hint,
+            style = MeowType.Meta,
             color = MeowColors.TextTertiary,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
         )
     }
 }

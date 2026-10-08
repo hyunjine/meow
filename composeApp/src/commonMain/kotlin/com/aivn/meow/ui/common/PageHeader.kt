@@ -6,8 +6,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -24,14 +27,33 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aivn.meow.theme.MeowColors
+import com.aivn.meow.ui.nav.DrawerWidth
 
 /** 메인 영역 공통 여백 · 최대 폭. 모든 화면이 같은 자리에 제목 줄을 두도록 함께 쓴다. */
 val PageHorizontalPadding = 40.dp
 val PageVerticalPadding = 32.dp
 val PageMaxWidth = 1120.dp
+
+/** 오른쪽 여백. 창 크기와 상관없이 항상 드로워 폭만큼 비운다. */
+val PageEndPadding = DrawerWidth
+
+/** 본문이 쓸 수 있는 폭: 좌우 여백을 빼고 [PageMaxWidth] 로 제한한다. */
+fun pageBodyWidth(maxWidth: Dp): Dp = minOf(maxWidth - PageHorizontalPadding - PageEndPadding, PageMaxWidth)
+
+/**
+ * 모든 화면 본문 컨테이너 공통 modifier. 왼쪽 [PageHorizontalPadding], 오른쪽 [PageEndPadding] 여백을 두고
+ * 폭은 [PageMaxWidth] 까지만 쓴다. 남는 폭은 오른쪽으로 보내 본문이 드로워 옆에 왼쪽 정렬되게 한다.
+ */
+fun Modifier.pageContent(): Modifier = this
+    .fillMaxWidth()
+    .wrapContentWidth(Alignment.Start)
+    .padding(start = PageHorizontalPadding, end = PageEndPadding, top = PageVerticalPadding, bottom = PageVerticalPadding)
+    .fillMaxWidth()
+    .widthIn(max = PageMaxWidth)
 
 /**
  * 모든 화면 공통 제목 줄. 좌: 제목 (+ 부제), 우: 마지막 동기화 상태 + [동기화] 버튼.

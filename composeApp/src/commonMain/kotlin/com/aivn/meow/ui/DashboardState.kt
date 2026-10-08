@@ -1,9 +1,14 @@
 package com.aivn.meow.ui
 
-import com.aivn.meow.config.loadFavoriteRepos
-import com.aivn.meow.config.saveFavoriteRepos
+import com.aivn.meow.config.FAVORITE_REPOS_FILE
+import com.aivn.meow.config.RepoPrefs
+import com.aivn.meow.config.SIDEBAR_REPOS_FILE
+import com.aivn.meow.config.loadRepoList
+import com.aivn.meow.config.restoreRepoPrefs
+import com.aivn.meow.config.saveRepoList
 import com.aivn.meow.data.DashboardSnapshot
 import com.aivn.meow.data.PrRepository
+import com.aivn.meow.data.RepoUniverse
 import com.aivn.meow.data.keepPreviousOnError
 import com.aivn.meow.data.workingRepos
 import com.aivn.meow.github.GithubApiException
@@ -18,8 +23,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 sealed interface DashboardUiState {
     data object Loading : DashboardUiState
@@ -79,27 +84,34 @@ class DashboardViewModel(
     private val _notices = MutableSharedFlow<List<MeowNotice>>(extraBufferCapacity = 8)
     val notices: SharedFlow<List<MeowNotice>> = _notices.asSharedFlow()
 
-    /** 조직의 전체 레포 이름. 아직 못 불러왔거나 실패했으면 null. */
-    private val _orgRepos = MutableStateFlow<List<String>?>(null)
-    val orgRepos: StateFlow<List<String>?> = _orgRepos.asStateFlow()
+    /** #127 관리 모달의 레포 목록 (조직 + 개인). 아직 못 불러왔거나 실패했으면 null. */
+    private val _repoUniverse = MutableStateFlow<RepoUniverse?>(null)
+    val repoUniverse: StateFlow<RepoUniverse?> = _repoUniverse.asStateFlow()
 
-    /** 즐겨찾기 레포. 저장 파일이 없으면 첫 정상 로딩 후 '작업 중' 레포로 한 번 채운다. */
-    private val storedFavorites = loadFavoriteRepos()
-    private var favoritesSeeded = storedFavorites != null
-    private val _favorites = MutableStateFlow(storedFavorites.orEmpty())
-    val favorites: StateFlow<Set<String>> = _favorites.asStateFlow()
+    /**
+     * #127 즐겨찾기 · 사이드바 체크. 즐겨찾기 파일이 없으면 첫 정상 로딩 후 '작업 중' 레포로 한 번 채우고 모두 체크한다.
+     * 예전 형식(이름만) 즐겨찾기는 `org/이름` 으로 옮기고, 체크 파일이 없으면 즐겨찾기를 모두 체크해 저장한다.
+     */
+    private val restoredPrefs = restoreRepoPrefs(loadRepoList(FAVORITE_REPOS_FILE), loadRepoList(SIDEBAR_REPOS_FILE), org)
+    private var favoritesSeeded = restoredPrefs.prefs != null
+    private val _repoPrefs = MutableStateFlow(restoredPrefs.prefs ?: RepoPrefs())
+    val repoPrefs: StateFlow<RepoPrefs> = _repoPrefs.asStateFlow()
 
     private var pollJob: Job? = null
     private var manualJob: Job? = null
-    private var orgReposJob: Job? = null
+    private var repoUniverseJob: Job? = null
 
     private var seenIds: Set<String> = emptySet()
     private var seenInitialised: Boolean = false
     private val sectionTracker = SectionNoticeTracker()
 
+    init {
+        if (restoredPrefs.needsSave) saveRepoPrefs()
+    }
+
     fun start() {
         if (pollJob?.isActive == true) return
-        loadOrgRepos()
+        loadRepoUniverse()
         pollJob = scope.launch {
             fetchOnce(auto = false)
             while (isActive) {
@@ -112,21 +124,41 @@ class DashboardViewModel(
     fun refresh() {
         manualJob?.cancel()
         manualJob = scope.launch { fetchOnce(auto = false) }
-        loadOrgRepos()
+        loadRepoUniverse()
     }
 
+    /** 드로워로 화면에 들어올 때: 이미 불러오는 중이면 건너뛰고, 아니면 동기화 버튼과 같이 새로 불러온다. */
+    fun syncIfIdle() {
+        val s = _state.value
+        if (s is DashboardUiState.Loading || (s is DashboardUiState.Loaded && s.refreshing)) return
+        if (manualJob?.isActive == true) return
+        refresh()
+    }
+
+    /** 관리 모달의 ☆/★. 해제하면 사이드바 체크도 함께 지운다. 바로 저장한다. */
     fun toggleFavorite(repo: String) {
-        val current = _favorites.value
-        _favorites.value = if (repo in current) current - repo else current + repo
+        _repoPrefs.value = _repoPrefs.value.toggleFavorite(repo)
         favoritesSeeded = true
-        saveFavoriteRepos(_favorites.value)
+        saveRepoPrefs()
+    }
+
+    /** 사이드바 체크 토글. 바로 저장한다. */
+    fun toggleSidebarRepo(repo: String) {
+        _repoPrefs.value = _repoPrefs.value.toggleChecked(repo)
+        saveRepoPrefs()
+    }
+
+    private fun saveRepoPrefs() {
+        val prefs = _repoPrefs.value
+        saveRepoList(FAVORITE_REPOS_FILE, prefs.favorites)
+        saveRepoList(SIDEBAR_REPOS_FILE, prefs.checkedFavorites)
     }
 
     /** 실패해도 대시보드에는 영향 없이 직전 목록(없으면 null)을 유지한다. */
-    private fun loadOrgRepos() {
-        orgReposJob?.cancel()
-        orgReposJob = scope.launch {
-            runCatching { repository.loadOrgRepos(org) }.onSuccess { _orgRepos.value = it }
+    private fun loadRepoUniverse() {
+        repoUniverseJob?.cancel()
+        repoUniverseJob = scope.launch {
+            runCatching { repository.loadRepoUniverse(org) }.onSuccess { _repoUniverse.value = it }
         }
     }
 
@@ -159,8 +191,8 @@ class DashboardViewModel(
                 emitDiff(snapshot)
                 if (!favoritesSeeded) {
                     favoritesSeeded = true
-                    _favorites.value = snapshot.workingRepos()
-                    saveFavoriteRepos(_favorites.value)
+                    _repoPrefs.value = RepoPrefs.seeded(snapshot.workingRepos())
+                    saveRepoPrefs()
                 }
                 _state.value = DashboardUiState.Loaded(snapshot, refreshing = false)
             }

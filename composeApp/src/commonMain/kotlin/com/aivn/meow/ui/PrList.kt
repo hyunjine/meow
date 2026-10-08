@@ -16,17 +16,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
-import androidx.compose.material3.TooltipBox
-import androidx.compose.material3.TooltipDefaults
-import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +44,9 @@ import com.aivn.meow.model.CiStatus
 import com.aivn.meow.model.PullRequest
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
+import com.aivn.meow.ui.common.MeowType
+import com.aivn.meow.ui.common.OpenOriginalButton
+import com.aivn.meow.ui.markdown.MarkdownBody
 
 /** 정렬 칩. 클릭하면 세 정렬 옵션 중 하나를 고르는 드롭다운 메뉴가 뜬다. */
 @Composable
@@ -76,8 +73,8 @@ internal fun SortChip(sortOption: PrSortOption, onSortSelect: (PrSortOption) -> 
                     text = {
                         Text(
                             text = option.label,
+                            style = MeowType.Meta,
                             color = if (isSelected) MeowColors.Brand else MeowColors.TextPrimary,
-                            fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                         )
                     },
@@ -120,12 +117,12 @@ internal fun GlassChip(
             .background(bg)
             .border(1.dp, stroke, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 9.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         leading?.invoke()
-        Text(text = text, color = textColor, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text(text = text, style = MeowType.Meta, color = textColor, fontWeight = FontWeight.SemiBold)
         if (trailingArrow) {
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
@@ -160,14 +157,14 @@ internal fun PrRow(
                 borderWidth = if (isSelected) 2.dp else 1.dp,
             )
             .clickable(onClick = onToggleExpand)
-            .padding(horizontal = 20.dp, vertical = 18.dp),
+            .padding(horizontal = 20.dp, vertical = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         AuthorAvatar(initials = pr.authorInitials, color = pr.repoColor)
 
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -178,20 +175,19 @@ internal fun PrRow(
                 Text(
                     text = "@${pr.author}",
                     modifier = Modifier.align(Alignment.CenterVertically),
+                    style = MeowType.Meta,
                     color = MeowColors.TextSecondary,
-                    fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     text = pr.relativeTime,
                     modifier = Modifier.align(Alignment.CenterVertically),
+                    style = MeowType.Meta,
                     color = MeowColors.TextTertiary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
                 )
             }
 
-            Text(text = titleWithNumber(pr.title, pr.number))
+            Text(text = titleWithNumber(pr.title, pr.number), style = MeowType.Title)
 
             CardBody(body = pr.body, isExpanded = isExpanded)
 
@@ -216,69 +212,27 @@ internal fun cardBorderColor(isSelected: Boolean, isExpanded: Boolean): Color = 
     else -> MeowColors.GlassBorder
 }
 
-/** 카드 본문. 펼쳤을 때만 전체를 보여주고, 접혀 있거나 비었으면 영역을 그리지 않는다. */
+/** 카드 본문. 펼쳤을 때만 GitHub 마크다운으로 전체를 보여주고(#119), 접혀 있거나 비었으면 영역을 그리지 않는다. */
 @Composable
 internal fun CardBody(body: String?, isExpanded: Boolean) {
-    val text = remember(body) { body?.let(::tidyBody).orEmpty() }
-    if (!isExpanded || text.isEmpty()) return
-    Text(
-        text = text,
-        color = MeowColors.TextSecondary,
-        fontSize = 13.sp,
-        lineHeight = 20.sp,
-    )
+    if (!isExpanded || body.isNullOrBlank()) return
+    MarkdownBody(markdown = body)
 }
 
-/** 줄 끝 공백을 지우고 연속된 빈 줄을 하나로 줄인다. */
-private fun tidyBody(raw: String): String =
-    raw.lines()
-        .map { it.trimEnd() }
-        .joinToString("\n")
-        .replace(Regex("\n{3,}"), "\n\n")
-        .trim()
-
-/** 카드 오른쪽 위 열 — 'GitHub에서 열기' 버튼, 본문이 있으면 그 아래 펼치기 표시(⌄ / ⌃). */
+/** 카드 오른쪽 위 열 — '원본 보기' 버튼, 본문이 있으면 그 아래 펼치기 표시(⌄ / ⌃). */
 @Composable
 internal fun CardActions(onOpen: () -> Unit, hasBody: Boolean, isExpanded: Boolean) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+        horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        OpenInGithubButton(onClick = onOpen)
+        OpenOriginalButton(onClick = onOpen)
         if (hasBody) {
             Icon(
                 imageVector = Icons.Default.KeyboardArrowDown,
                 contentDescription = if (isExpanded) "본문 접기" else "본문 펼치기",
                 tint = MeowColors.TextTertiary,
-                modifier = Modifier.size(20.dp).rotate(if (isExpanded) 180f else 0f),
-            )
-        }
-    }
-}
-
-/** 카드 오른쪽 위의 'GitHub에서 열기' 원형 아이콘 버튼. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun OpenInGithubButton(onClick: () -> Unit) {
-    TooltipBox(
-        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-        tooltip = { PlainTooltip { Text("GitHub에서 열기") } },
-        state = rememberTooltipState(),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(30.dp)
-                .clip(CircleShape)
-                .background(MeowColors.Surface)
-                .border(1.dp, MeowColors.GlassBorder, CircleShape)
-                .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                Icons.AutoMirrored.Filled.OpenInNew,
-                contentDescription = "GitHub에서 열기",
-                tint = MeowColors.TextSecondary,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.padding(end = 6.dp).size(20.dp).rotate(if (isExpanded) 180f else 0f),
             )
         }
     }
@@ -304,13 +258,16 @@ internal fun AuthorAvatar(initials: String, color: Color) {
     }
 }
 
-/** 제목 뒤에 두 칸 띄우고 `#번호` 를 붙인 한 덩어리 텍스트. 좁은 카드에서 함께 줄바꿈된다. */
+/**
+ * 제목 뒤에 두 칸 띄우고 `#번호` 를 붙인 한 덩어리 텍스트. 좁은 카드에서 함께 줄바꿈된다.
+ * 크기 · 줄 간격은 `style = MeowType.Title` 로 그리는 쪽에서 준다.
+ */
 internal fun titleWithNumber(title: String, number: Int): AnnotatedString = buildAnnotatedString {
-    withStyle(SpanStyle(color = MeowColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)) {
+    withStyle(SpanStyle(color = MeowColors.TextPrimary, fontWeight = FontWeight.SemiBold)) {
         append(title)
     }
     append("  ")
-    withStyle(SpanStyle(color = MeowColors.TextTertiary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)) {
+    withStyle(SpanStyle(color = MeowColors.TextTertiary, fontSize = 14.sp, fontWeight = FontWeight.Medium)) {
         append("#$number")
     }
 }
@@ -322,9 +279,9 @@ internal fun PillChip(text: String, color: Color) {
             .clip(RoundedCornerShape(999.dp))
             .background(color.copy(alpha = 0.14f))
             .border(1.dp, color.copy(alpha = 0.4f), RoundedCornerShape(999.dp))
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {
-        Text(text = text, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text(text = text, style = MeowType.Badge, color = color, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -342,16 +299,16 @@ private fun CiChip(status: CiStatus) {
             .clip(RoundedCornerShape(999.dp))
             .background(color.copy(alpha = 0.16f))
             .border(1.dp, color.copy(alpha = 0.4f), RoundedCornerShape(999.dp))
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = 10.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(color))
-        Text(text = label, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text(text = label, style = MeowType.Badge, color = color, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
 internal fun DotSeparator(modifier: Modifier = Modifier) {
-    Text(text = "·", modifier = modifier, color = MeowColors.TextTertiary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    Text(text = "·", modifier = modifier, style = MeowType.Meta, color = MeowColors.TextTertiary)
 }

@@ -14,17 +14,17 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.DayOfWeek
-import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 data class CafeteriaUiState(
     val today: LocalDate,
@@ -44,7 +44,7 @@ data class CafeteriaUiState(
 fun LocalDate.weekMonday(): LocalDate = minus(dayOfWeek.isoDayNumber - 1, DateTimeUnit.DAY)
 
 /**
- * 구내식당 화면 상태. App 수준에서 만들어 화면 전환에도 받아 둔 주를 유지한다.
+ * 구내 식당 화면 상태. App 수준에서 만들어 화면 전환에도 받아 둔 주를 유지한다.
  * 평일 11:00–13:30(KST)에는 이번 주를 5분마다 다시 받아 그날 중식 게시물을 자동으로 띄운다.
  */
 class CafeteriaViewModel(
@@ -77,6 +77,12 @@ class CafeteriaViewModel(
     }
 
     fun sync() = load(_state.value.selectedMonday, force = true)
+
+    /** 드로워로 화면에 들어올 때: 보고 있는 주를 받는 중이면 건너뛴다. */
+    fun syncIfIdle() {
+        rollToday()
+        sync()
+    }
 
     fun previousWeek() = select(_state.value.selectedMonday.minus(7, DateTimeUnit.DAY))
 

@@ -3,6 +3,7 @@ package com.aivn.meow.weekly
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.isoDayNumber
+import kotlinx.datetime.number
 import kotlinx.datetime.plus
 
 /** ISO-8601 주차(월요일 시작, 그해 첫 목요일이 든 주가 1주). */
@@ -60,7 +61,7 @@ private fun parseColumn(label: String, year: Int, previousStart: LocalDate?): We
             val startMonth = sm.toInt()
             val endMonth = em.toIntOrNull() ?: startMonth
             // 계획 열이 실적보다 앞선 달이면 해가 바뀐 것(12월 실적 → 1월 계획).
-            val startYear = if (previousStart != null && startMonth < previousStart.monthNumber) year + 1 else year
+            val startYear = if (previousStart != null && startMonth < previousStart.month.number) year + 1 else year
             val start = LocalDate(startYear, startMonth, sd.toInt())
             val endYear = if (endMonth < startMonth) startYear + 1 else startYear
             DateRange(start, LocalDate(endYear, endMonth, ed.toInt()))

@@ -51,26 +51,17 @@ enum class AppScreen { GITHUB, WEEKLY_REPORT, SCHEDULE, CAFETERIA }
 
 data class DrawerItem(val screen: AppScreen, val label: String, val icon: @Composable () -> Painter)
 
-data class DrawerSection(val label: String, val items: List<DrawerItem>)
-
-/** 드로워 메뉴. 새 화면은 섹션 · 항목을 여기에 더한다. */
-val AppDrawerSections = listOf(
-    DrawerSection(
-        label = "개발",
-        items = listOf(DrawerItem(AppScreen.GITHUB, "GitHub") { painterResource(Res.drawable.github_mark) }),
-    ),
-    DrawerSection(
-        label = "업무",
-        items = listOf(
-            DrawerItem(AppScreen.WEEKLY_REPORT, "주간 보고") { rememberVectorPainter(Icons.Outlined.Description) },
-            DrawerItem(AppScreen.SCHEDULE, "일정") { rememberVectorPainter(Icons.Outlined.CalendarMonth) },
-            DrawerItem(AppScreen.CAFETERIA, "구내식당") { rememberVectorPainter(Icons.Outlined.Restaurant) },
-        ),
-    ),
+/** 드로워 메뉴. 새 화면은 항목을 여기에 더한다. */
+val AppDrawerItems = listOf(
+    DrawerItem(AppScreen.GITHUB, "GitHub") { painterResource(Res.drawable.github_mark) },
+    DrawerItem(AppScreen.WEEKLY_REPORT, "주간 보고") { rememberVectorPainter(Icons.Outlined.Description) },
+    DrawerItem(AppScreen.SCHEDULE, "일정") { rememberVectorPainter(Icons.Outlined.CalendarMonth) },
+    DrawerItem(AppScreen.CAFETERIA, "구내 식당") { rememberVectorPainter(Icons.Outlined.Restaurant) },
 )
 
 private val DrawerBackground = Color(0xFF2B2F55)
-private val DrawerWidth = 256.dp
+/** 드로워 폭. 각 화면 오른쪽 여백도 이 값을 쓴다. */
+val DrawerWidth = 256.dp
 
 /** 창 왼쪽에 항상 열린 메뉴 드로워. 화면별 정보(개수 · 동기화 상태)는 두지 않는다. */
 @Composable
@@ -91,17 +82,8 @@ fun AppDrawer(
     ) {
         Workspace()
         Spacer(Modifier.height(20.dp))
-        AppDrawerSections.forEach { section ->
-            Text(
-                text = section.label,
-                modifier = Modifier.padding(start = 10.dp, top = 12.dp, bottom = 6.dp),
-                color = Color.White.copy(alpha = 0.45f),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-            section.items.forEach { item ->
-                DrawerMenuItem(item = item, selected = item.screen == selected, onClick = { onSelect(item.screen) })
-            }
+        AppDrawerItems.forEach { item ->
+            DrawerMenuItem(item = item, selected = item.screen == selected, onClick = { onSelect(item.screen) })
         }
         Spacer(Modifier.weight(1f))
         AccountRow(login = viewerLogin, initials = viewerInitials, avatarUrl = avatarUrl)

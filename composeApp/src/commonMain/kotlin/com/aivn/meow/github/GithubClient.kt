@@ -14,11 +14,11 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 class GithubClient(
     /** 요청마다 호출돼 최신 토큰을 돌려준다 — 토큰 교체 후 재시작 없이 다시 시도로 반영하기 위함. */
@@ -105,13 +105,13 @@ class GithubClient(
     private fun buildQuery(org: String) = """
         query {
           viewer { login name avatarUrl }
-          search(query: "org:$org is:pr is:open review-requested:@me archived:false", type: ISSUE, first: 50) {
+          search(query: "${dashboardScope(org)} is:pr is:open review-requested:@me archived:false", type: ISSUE, first: 50) {
             issueCount
             nodes {
               ... on PullRequest {
                 number
                 title
-                bodyText
+                body
                 url
                 isDraft
                 createdAt

@@ -1,12 +1,13 @@
 package com.aivn.meow.cafeteria
 
 import kotlinx.datetime.DateTimeUnit
-import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
+import kotlinx.datetime.number
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Instant
 
 val KST: TimeZone = TimeZone.of("Asia/Seoul")
 
@@ -32,8 +33,8 @@ fun parseLunchDate(title: String, publishedAt: Long): LocalDate? {
     val day = match.groupValues[2].toInt()
     val published = publishedAt.toKstDate()
     val year = when {
-        month - published.monthNumber > 6 -> published.year - 1
-        published.monthNumber - month > 6 -> published.year + 1
+        month - published.month.number > 6 -> published.year - 1
+        published.month.number - month > 6 -> published.year + 1
         else -> published.year
     }
     return runCatching { LocalDate(year, month, day) }.getOrNull()
@@ -93,7 +94,7 @@ private fun resolveDays(text: String, week: List<LocalDate>): List<LocalDate> {
     val days = DATE_TOKEN.findAll(text).mapNotNull { m ->
         m.groupValues[1].takeIf { it.isNotEmpty() }?.let { month = it.toInt() }
         val day = m.groupValues[2].toInt()
-        week.firstOrNull { it.dayOfMonth == day && (month == null || it.monthNumber == month) }
+        week.firstOrNull { it.day == day && (month == null || it.month.number == month) }
     }.distinct().toList()
     if (days.size == 2 && "부터" in text && "까지" in text) {
         val (a, b) = days.sorted()

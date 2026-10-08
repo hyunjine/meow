@@ -13,7 +13,8 @@ interface SearchItemFields {
     val typename: String
     val number: Int
     val title: String
-    val bodyText: String
+    /** 본문 원문(GitHub 마크다운). */
+    val body: String
     val url: String
     val updatedAt: String
     val author: Author?
@@ -27,7 +28,7 @@ data class SearchItemNode(
     @SerialName("__typename") override val typename: String,
     override val number: Int,
     override val title: String,
-    override val bodyText: String = "",
+    override val body: String = "",
     override val url: String,
     override val updatedAt: String,
     override val author: Author? = null,
@@ -49,13 +50,19 @@ const val SEARCH_ITEM_FIELDS = """
     __typename
     number
     title
-    bodyText
+    body
     url
     updatedAt
     author { login avatarUrl }
     repository { nameWithOwner }
     labels(first: 10) { nodes { name color } }
 """
+
+/**
+ * #127 대시보드 검색 범위: 조직 레포 + 내 개인 레포. GitHub 검색은 여러 owner 한정자를 OR 로 묶는다
+ * (`org:Team-AIVN user:@me` = Team-AIVN 레포 또는 내 소유 레포). `@me` 는 토큰 주인 login 과 같다.
+ */
+fun dashboardScope(org: String): String = "org:$org user:@me"
 
 /**
  * GitHub 검색 문법([searchQuery], 예: `org:Team-AIVN assignee:@me is:issue`)으로 이슈 · PR 을 조회한다.

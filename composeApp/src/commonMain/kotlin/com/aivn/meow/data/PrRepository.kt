@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.Color
 import com.aivn.meow.github.GithubClient
 import com.aivn.meow.github.PullRequestNode
 import com.aivn.meow.github.fetchOrgRepoNames
+import com.aivn.meow.github.fetchViewerRepos
 import com.aivn.meow.model.CiStatus
 import com.aivn.meow.model.Label
 import com.aivn.meow.model.PullRequest
@@ -47,13 +48,28 @@ class PrRepository(
         )
     }
 
-    /** 즐겨찾기 관리 모달의 '전체' 목록. 대시보드 폴링과 별개로 시작 · 수동 새로고침 때만 부른다. */
-    suspend fun loadOrgRepos(org: String): List<String> = client.fetchOrgRepoNames(org)
+    /**
+     * #127 즐겨찾기 관리 모달의 레포 목록 = 조직 레포 + 내 개인 레포. 대시보드 폴링과 별개로 시작 · 수동 새로고침 때만 부른다.
+     * 한쪽이 실패하면 전체를 실패로 본다 (직전 목록 유지).
+     */
+    suspend fun loadRepoUniverse(org: String): RepoUniverse = coroutineScope {
+        val orgRepos = async { client.fetchOrgRepoNames(org) }
+        val viewer = client.fetchViewerRepos()
+        RepoUniverse(org = org, orgRepos = orgRepos.await(), login = viewer.login, personalRepos = viewer.repos)
+    }
 }
 
-/** '작업 중' 레포: 어느 탭에든 항목이 하나라도 있는 레포. */
-fun DashboardSnapshot.workingRepos(): Set<String> =
-    (pullRequests.map { it.repo } + sections.flatMap { result -> result.items.map { it.repo } }).toSet()
+/** #127 관리 모달에 보여줄 레포 전체. 모두 `owner/name`. */
+data class RepoUniverse(
+    val org: String,
+    val orgRepos: List<String>,
+    val login: String,
+    val personalRepos: List<String>,
+)
+
+/** '작업 중' 레포(`owner/name`): 어느 탭에든 항목이 하나라도 있는 레포. */
+fun DashboardSnapshot.workingRepos(): List<String> =
+    (pullRequests.map { it.repoFullName } + sections.flatMap { result -> result.items.map { it.repoFullName } }).distinct()
 
 private fun PullRequestNode.toDomain(): PullRequest {
     val repoShort = repository.nameWithOwner.substringAfter('/', repository.nameWithOwner)
@@ -80,7 +96,8 @@ private fun PullRequestNode.toDomain(): PullRequest {
         ci = ci,
         labels = labels,
         url = url,
-        body = bodyText,
+        body = body,
+        repoFullName = repository.nameWithOwner,
     )
 }
 
@@ -119,7 +136,7 @@ internal fun initialsFrom(name: String?, login: String): String {
     }
 }
 
-private fun isOverdue(nowIso: String, updatedIso: String): Boolean {
+internal fun isOverdue(nowIso: String, updatedIso: String): Boolean {
     val now = parseInstantSeconds(nowIso) ?: return false
     val updated = parseInstantSeconds(updatedIso) ?: return false
     return (now - updated) >= 48L * 60 * 60

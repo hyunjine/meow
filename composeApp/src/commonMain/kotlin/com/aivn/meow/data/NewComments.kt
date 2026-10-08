@@ -3,7 +3,7 @@ package com.aivn.meow.data
 import com.aivn.meow.github.CommentThreadNode
 import com.aivn.meow.github.ThreadCommentNode
 import com.aivn.meow.model.CommentSource
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 /** #84 스레드 하나에서 고른 새 댓글 · Comment 리뷰 한 건. */
 data class PickedComment(
@@ -24,18 +24,20 @@ fun CommentThreadNode.newCommentsFor(me: String, since: Instant): List<PickedCom
     val isMine = author?.login.equals(me, ignoreCase = true)
     val isPr = typename == "PullRequest"
     val byOthers = { node: ThreadCommentNode -> !node.author?.login.equals(me, ignoreCase = true) }
+    // #104 claude[bot] 의 댓글 · 리뷰는 알리지 않는다 (내 마지막 참여 시각 계산은 byOthers 그대로).
+    val notify = { node: ThreadCommentNode -> byOthers(node) && !isClaudeBot(node.author?.login, node.author?.typename) }
     val picked = mutableListOf<PickedComment>()
     fun pick(source: CommentSource, node: ThreadCommentNode, at: Instant) {
         picked += PickedComment(source, node, at, mentionsLogin(node.body, me))
     }
     if (isMine) {
         val source = if (isPr) CommentSource.MyPr else CommentSource.MyIssue
-        comments.nodes.filter(byOthers).forEach { node ->
+        comments.nodes.filter(notify).forEach { node ->
             val at = node.createdInstant()?.takeIf { it >= since } ?: return@forEach
             pick(source, node, at)
         }
         if (isPr) {
-            reviews.nodes.filter { byOthers(it) && it.body.isNotBlank() }.forEach { node ->
+            reviews.nodes.filter { notify(it) && it.body.isNotBlank() }.forEach { node ->
                 val at = node.createdInstant()?.takeIf { it >= since } ?: return@forEach
                 pick(CommentSource.PrReview, node, at)
             }
@@ -45,7 +47,7 @@ fun CommentThreadNode.newCommentsFor(me: String, since: Instant): List<PickedCom
             .filterNot(byOthers)
             .mapNotNull { it.createdInstant() }
             .maxOrNull()
-        comments.nodes.filter(byOthers).forEach { node ->
+        comments.nodes.filter(notify).forEach { node ->
             val at = node.createdInstant()?.takeIf { it >= since && (myLast == null || it > myLast) } ?: return@forEach
             pick(CommentSource.Thread, node, at)
         }
