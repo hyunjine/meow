@@ -45,10 +45,10 @@ private const val MY_PR_STATUS_FIELDS = SEARCH_ITEM_FIELDS + """
     comments { totalCount }
 """
 
-/** `org:$org author:@me is:pr is:open` 으로 내 열린 PR 과 리뷰 · CI · 댓글 현황을 조회한다. */
+/** `org:$org user:@me author:@me is:pr is:open` 으로 내 열린 PR 과 리뷰 · CI · 댓글 현황을 조회한다. */
 suspend fun GithubClient.searchMyPrStatus(org: String): SearchConnection<MyPrStatusNode> =
     search(
-        searchQuery = "org:$org author:@me is:pr is:open",
+        searchQuery = "${dashboardScope(org)} author:@me is:pr is:open",
         nodeSerializer = MyPrStatusNode.serializer(),
         pullRequestFields = MY_PR_STATUS_FIELDS,
     )

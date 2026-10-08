@@ -142,6 +142,7 @@ private fun NotifyEventRow.toNotice(): MeowNotice? {
         comment = commentSource?.let {
             CommentMeta(source = it, commenter = authorLogin, threadUrl = url.substringBefore('#'))
         },
+        repoFullName = repoFullName,
     )
     if (commentSource != null) return MeowNotice.NewComment(item)
     return when (kind) {
@@ -173,6 +174,7 @@ private fun PrEventRow.toDomain(): PullRequest {
         ci = CiStatus.Pending,
         labels = labels.take(4).map { Label(text = it.name, color = hexColorOrFallback(it.color, color)) },
         url = prUrl,
+        repoFullName = repoFullName,
     )
 }
 

@@ -86,5 +86,6 @@ fun SearchItemFields.toSectionItem(
         badges = badges,
         detail = detail,
         body = body,
+        repoFullName = repository.nameWithOwner,
     )
 }

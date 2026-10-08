@@ -27,6 +27,8 @@ data class SectionItem(
     val reviewState: String? = null,
     /** #84 새 댓글 섹션 전용 출처 · 작성자 · 멘션 여부. 다른 섹션은 null. */
     val comment: CommentMeta? = null,
+    /** #127 `owner/name` (예: `hyunjine/meow`). 사이드바 체크 필터 기준. [repo] 는 표시용 짧은 이름. */
+    val repoFullName: String = repo,
 )
 
 /** #84 새 댓글이 달린 곳. [label] 은 카드의 출처 칩 문구. */

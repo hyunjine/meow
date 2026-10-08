@@ -59,6 +59,12 @@ const val SEARCH_ITEM_FIELDS = """
 """
 
 /**
+ * #127 대시보드 검색 범위: 조직 레포 + 내 개인 레포. GitHub 검색은 여러 owner 한정자를 OR 로 묶는다
+ * (`org:Team-AIVN user:@me` = Team-AIVN 레포 또는 내 소유 레포). `@me` 는 토큰 주인 login 과 같다.
+ */
+fun dashboardScope(org: String): String = "org:$org user:@me"
+
+/**
  * GitHub 검색 문법([searchQuery], 예: `org:Team-AIVN assignee:@me is:issue`)으로 이슈 · PR 을 조회한다.
  * 노드 타입별 선택 필드는 [issueFields] / [pullRequestFields] 로 확장할 수 있다.
  */
