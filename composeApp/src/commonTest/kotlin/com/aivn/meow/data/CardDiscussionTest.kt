@@ -55,7 +55,7 @@ class CardDiscussionTest {
     }
 
     @Test
-    fun claudeBotIsExcludedEverywhere() {
+    fun claudeBotIsShownInCardTabs() {
         val result = buildCardDiscussion(
             comments = listOf(comment("claude", "2026-10-01T00:00:00Z", claudeBot), comment("a", "2026-10-02T00:00:00Z")),
             reviews = listOf(
@@ -68,8 +68,8 @@ class CardDiscussionTest {
                 ),
             ),
         )
-        assertEquals(listOf("a"), result.comments.map { it.author })
-        assertEquals(listOf("x"), result.reviews.map { it.author })
+        assertEquals(listOf("claude", "a", "claude[bot]"), result.comments.map { it.author })
+        assertEquals(listOf("claude", "x"), result.reviews.map { it.author })
     }
 
     @Test
