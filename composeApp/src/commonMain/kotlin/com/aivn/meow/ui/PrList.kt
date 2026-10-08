@@ -236,8 +236,7 @@ internal fun ExpandableCard(
     expanded: (@Composable () -> Unit)?,
 ) {
     val showExpanded = isExpanded && expanded != null
-    // 접혀 있을 땐 카드 전체가 눌리고 리플도 카드 전체에 퍼진다.
-    // 펼쳐 있을 땐 헤더만 눌러 접을 수 있고, 헤더 일부만 회색으로 칠해지는 리플은 그리지 않는다.
+    // 카드에는 리플을 그리지 않는다. 접혀 있을 땐 카드 전체, 펼쳐 있을 땐 헤더만 눌러 펼치고 접는다.
     Column(
         modifier = modifier
             .glassSurface(
@@ -247,16 +246,14 @@ internal fun ExpandableCard(
                 borderWidth = if (isSelected) 2.dp else 1.dp,
             )
             .clip(RoundedCornerShape(20.dp))
-            .then(if (showExpanded) Modifier else Modifier.clickable(onClick = onToggleExpand)),
+            .then(if (showExpanded) Modifier else Modifier.noRippleClickable(onToggleExpand)),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .then(
                     if (showExpanded) {
-                        Modifier
-                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onToggleExpand)
-                            .pointerHoverIcon(PointerIcon.Hand)
+                        Modifier.noRippleClickable(onToggleExpand)
                     } else {
                         Modifier
                     },
@@ -272,6 +269,12 @@ internal fun ExpandableCard(
         }
     }
 }
+
+/** 리플 없이 눌리고, 마우스를 올리면 손가락 커서를 보여 준다. */
+@Composable
+private fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier =
+    clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
+        .pointerHoverIcon(PointerIcon.Hand)
 
 /** 키보드 선택 > 펼침 > 기본 순으로 카드 테두리 색을 고른다. */
 internal fun cardBorderColor(isSelected: Boolean, isExpanded: Boolean): Color = when {
