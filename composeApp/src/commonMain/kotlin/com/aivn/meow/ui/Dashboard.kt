@@ -58,10 +58,14 @@ import com.aivn.meow.model.PullRequest
 import com.aivn.meow.model.SectionItem
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
+import com.aivn.meow.ui.card.CardDiscussionStore
+import com.aivn.meow.ui.card.LocalCardDiscussions
 import com.aivn.meow.ui.common.MeowType
 import com.aivn.meow.ui.common.PageHeader
 import com.aivn.meow.ui.common.pageBodyWidth
 import com.aivn.meow.ui.common.pageContent
+import com.aivn.meow.ui.pr.MergeFooter
+import com.aivn.meow.ui.sections.MyPrStatusSection
 import com.aivn.meow.ui.sections.SectionRow
 import com.aivn.meow.util.formatKst
 import com.aivn.meow.util.formatSyncLabel
@@ -77,6 +81,7 @@ fun Dashboard(
     repoUniverse: RepoUniverse?,
     onToggleFavorite: (String) -> Unit,
     onToggleSidebarRepo: (String) -> Unit,
+    discussions: CardDiscussionStore? = null,
 ) {
     Box(
         modifier = Modifier.fillMaxSize().background(MeowColors.Background),
@@ -84,7 +89,9 @@ fun Dashboard(
         when (state) {
             is DashboardUiState.Loading -> CenteredLoading("PR 목록을 불러오는 중…")
             is DashboardUiState.Error -> CenteredError(state.failure, onRefresh)
-            is DashboardUiState.Loaded -> DashboardContent(state, onRefresh, onOpenPr, onOpenUrl, repoPrefs, repoUniverse, onToggleFavorite, onToggleSidebarRepo)
+            is DashboardUiState.Loaded -> CompositionLocalProvider(LocalCardDiscussions provides discussions) {
+                DashboardContent(state, onRefresh, onOpenPr, onOpenUrl, repoPrefs, repoUniverse, onToggleFavorite, onToggleSidebarRepo)
+            }
         }
     }
 }
@@ -479,6 +486,13 @@ private fun SectionTabContent(
                     onToggleExpand = { onToggleExpand(item.url) },
                     onOpen = { onOpenUrl(item.url) },
                     modifier = cellModifier,
+                    showDiscussion = section.showsDiscussion,
+                    // #130 내 PR 현황 카드에만 머지 바
+                    footer = if (section.id == MyPrStatusSection.id) {
+                        { MergeFooter(prUrl = item.url, prNumber = item.number, prTitle = item.title) }
+                    } else {
+                        null
+                    },
                 )
             }
         }
