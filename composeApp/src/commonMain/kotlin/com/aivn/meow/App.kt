@@ -155,6 +155,7 @@ fun App(
                             repoUniverse = repoUniverse,
                             onToggleFavorite = viewModel::toggleFavorite,
                             onToggleSidebarRepo = viewModel::toggleSidebarRepo,
+                            discussions = viewModel.discussions,
                         )
                         AppScreen.WEEKLY_REPORT -> WeeklyReportScreen(viewModel = weeklyViewModel, onOpenUrl = onOpenUrl)
                         AppScreen.SCHEDULE -> ScheduleScreen(viewModel = scheduleViewModel, onOpenOutlookCalendar = onOpenOutlookCalendar)

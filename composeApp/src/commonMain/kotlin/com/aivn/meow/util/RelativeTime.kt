@@ -20,6 +20,20 @@ fun relativeTime(fromIso: String, now: Instant = Clock.System.now()): String {
     }
 }
 
+/** #131 댓글 · 리뷰 작성 시각용 짧은 상대 시각 (`방금` · `3분 전` · `2일 전` …). */
+fun relativeAgo(fromIso: String, now: Instant = Clock.System.now()): String {
+    val past = runCatching { Instant.parse(fromIso) }.getOrNull() ?: return ""
+    val secs = (now.epochSeconds - past.epochSeconds).coerceAtLeast(0)
+    return when {
+        secs < 60 -> "방금"
+        secs < 3600 -> "${secs / 60}분 전"
+        secs < 86_400 -> "${secs / 3600}시간 전"
+        secs < 30L * 86_400 -> "${secs / 86_400}일 전"
+        secs < 365L * 86_400 -> "${secs / (30L * 86_400)}달 전"
+        else -> "${secs / (365L * 86_400)}년 전"
+    }
+}
+
 fun formatSyncLabel(iso: String, now: Instant = Clock.System.now()): String {
     val past = runCatching { Instant.parse(iso) }.getOrNull() ?: return iso
     val secs = (now.epochSeconds - past.epochSeconds).coerceAtLeast(0)

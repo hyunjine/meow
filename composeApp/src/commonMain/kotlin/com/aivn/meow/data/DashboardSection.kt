@@ -24,6 +24,9 @@ interface DashboardSection {
     /** 탭 바 오른쪽 도구에 붙는 선택적 동작. 기본은 없음. */
     val headerAction: SectionHeaderAction? get() = null
 
+    /** #131 카드를 펼치면 본문 · 댓글 · 리뷰 탭을 보여줄지. 기본은 예전처럼 본문만. */
+    val showsDiscussion: Boolean get() = false
+
     suspend fun load(client: GithubClient, org: String): SectionData
 }
 

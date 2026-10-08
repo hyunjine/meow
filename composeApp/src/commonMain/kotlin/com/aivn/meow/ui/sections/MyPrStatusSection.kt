@@ -15,6 +15,7 @@ object MyPrStatusSection : DashboardSection {
     override val title = "내 PR 현황"
     override val emptyTitle = "열려 있는 내 PR 이 없어요"
     override val emptyHint = "PR 을 올리면 리뷰 · CI 현황이 여기에 표시돼요"
+    override val showsDiscussion = true
 
     override suspend fun load(client: GithubClient, org: String): SectionData {
         val result = client.searchMyPrStatus(org)
