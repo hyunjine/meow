@@ -16,13 +16,13 @@ import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aivn.meow.theme.MeowColors
+import com.aivn.meow.ui.common.MeowType
 import com.aivn.meow.ui.loadImageBitmap
 import com.mikepenz.markdown.compose.components.markdownComponents
 import com.mikepenz.markdown.compose.elements.MarkdownCheckBox
@@ -44,9 +44,10 @@ internal fun MarkdownBody(markdown: String, modifier: Modifier = Modifier) {
     val content = remember(markdown) { preprocessGithubMarkdown(markdown) }
     if (content.isEmpty()) return
 
-    val body = TextStyle(color = MeowColors.TextSecondary, fontSize = 13.sp, lineHeight = 20.sp)
+    // #125 글자 단계: 본문 15/24, 제목 22 · 19 · 17, 코드 13.5/20.
+    val body = MeowType.Body.copy(color = MeowColors.TextSecondary)
     val heading = body.copy(color = MeowColors.TextPrimary, fontWeight = FontWeight.Bold)
-    val code = body.copy(color = MeowColors.TextPrimary, fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 18.sp)
+    val code = MeowType.Code.copy(color = MeowColors.TextPrimary)
 
     Markdown(
         content = content,
@@ -59,38 +60,38 @@ internal fun MarkdownBody(markdown: String, modifier: Modifier = Modifier) {
             tableBackground = MeowColors.TextPrimary.copy(alpha = 0.03f),
         ),
         typography = markdownTypography(
-            h1 = heading.copy(fontSize = 17.sp, lineHeight = 24.sp),
-            h2 = heading.copy(fontSize = 16.sp, lineHeight = 22.sp),
-            h3 = heading.copy(fontSize = 15.sp, lineHeight = 21.sp),
-            h4 = heading.copy(fontSize = 14.sp),
-            h5 = heading.copy(fontSize = 13.sp),
-            h6 = heading.copy(fontSize = 13.sp, color = MeowColors.TextTertiary),
+            h1 = heading.copy(fontSize = 22.sp, lineHeight = 30.sp),
+            h2 = heading.copy(fontSize = 19.sp, lineHeight = 27.sp),
+            h3 = heading.copy(fontSize = 17.sp, lineHeight = 25.sp),
+            h4 = heading.copy(fontSize = 15.sp),
+            h5 = heading.copy(fontSize = 15.sp),
+            h6 = heading.copy(fontSize = 15.sp, color = MeowColors.TextTertiary),
             text = body,
             code = code,
-            inlineCode = body.copy(fontFamily = FontFamily.Monospace, fontSize = 12.sp),
+            inlineCode = body.copy(fontFamily = FontFamily.Monospace, fontSize = MeowType.Code.fontSize),
             quote = body.copy(color = MeowColors.TextTertiary, fontStyle = FontStyle.Italic),
             paragraph = body,
             ordered = body,
             bullet = body,
             list = body,
             textLink = TextLinkStyles(style = SpanStyle(color = MeowColors.Brand, fontWeight = FontWeight.SemiBold)),
-            table = body.copy(fontSize = 12.sp, lineHeight = 18.sp),
+            table = MeowType.Meta.copy(color = MeowColors.TextSecondary, fontWeight = FontWeight.Normal),
         ),
         padding = markdownPadding(
-            block = 3.dp,
+            block = 10.dp,
             list = 2.dp,
-            listItemTop = 1.dp,
-            listItemBottom = 1.dp,
-            listIndent = 6.dp,
-            codeBlock = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-            blockQuote = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-            blockQuoteText = PaddingValues(vertical = 2.dp),
+            listItemTop = 2.dp,
+            listItemBottom = 2.dp,
+            listIndent = 8.dp,
+            codeBlock = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+            blockQuote = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+            blockQuoteText = PaddingValues(vertical = 3.dp),
         ),
         dimens = markdownDimens(
             codeBackgroundCornerSize = 8.dp,
             blockQuoteThickness = 3.dp,
-            tableCellWidth = 140.dp,
-            tableCellPadding = 8.dp,
+            tableCellWidth = 160.dp,
+            tableCellPadding = 10.dp,
         ),
         imageTransformer = UrlImageTransformer,
         components = markdownComponents(

@@ -47,7 +47,6 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -57,6 +56,7 @@ import com.aivn.meow.ms.MsAuthState
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
 import com.aivn.meow.ui.EmptyStateCard
+import com.aivn.meow.ui.common.MeowType
 import com.aivn.meow.ui.common.OpenOriginalButton
 import com.aivn.meow.ui.common.PageHeader
 import com.aivn.meow.ui.common.pageContent
@@ -167,30 +167,26 @@ private fun ConnectCard(auth: MsAuthState, onConnect: () -> Unit) {
         Text(text = "🔗", fontSize = 28.sp)
         Text(
             text = "Microsoft 계정을 연결하면 주간회의 문서를 찾아 실적 초안을 만들어 드려요",
+            style = MeowType.SectionHeading,
             color = MeowColors.TextPrimary,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
         )
         when (auth) {
             is MsAuthState.Connecting -> Text(
                 text = "연결하는 중이에요 · 브라우저가 열리면 로그인을 마쳐 주세요",
+                style = MeowType.Meta,
                 color = MeowColors.TextTertiary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
             )
             is MsAuthState.Error -> Text(
                 text = auth.message,
+                style = MeowType.Meta,
                 color = MeowColors.Error,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,
             )
             else -> Text(
                 text = "회사 계정으로 로그인하면 메일 · OneDrive 의 주간회의 자료를 읽어요",
+                style = MeowType.Meta,
                 color = MeowColors.TextTertiary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
             )
         }
         Spacer(Modifier.height(4.dp))
@@ -207,12 +203,11 @@ private fun ReportNameCard(initialName: String?, onSave: (String) -> Unit, onCan
     var name by rememberSaveable(initialName) { mutableStateOf(initialName.orEmpty()) }
     val save = { if (name.isNotBlank()) onSave(name) }
     WeeklyCard(modifier = Modifier.fillMaxWidth()) {
-        Text("보고서 표의 내 이름", color = MeowColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Text("보고서 표의 내 이름", style = MeowType.SectionHeading, color = MeowColors.TextPrimary)
         Text(
             text = "주간회의 문서 표에서 내 행을 찾을 때 써요. 표에 적힌 이름 그대로 입력해 주세요",
+            style = MeowType.Meta,
             color = MeowColors.TextTertiary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             BasicTextField(
@@ -227,7 +222,7 @@ private fun ReportNameCard(initialName: String?, onSave: (String) -> Unit, onCan
                     }
                 },
                 singleLine = true,
-                textStyle = TextStyle(color = MeowColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+                textStyle = MeowType.Body.copy(color = MeowColors.TextPrimary),
                 cursorBrush = SolidColor(MeowColors.Brand),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { save() }),
@@ -239,7 +234,7 @@ private fun ReportNameCard(initialName: String?, onSave: (String) -> Unit, onCan
                             .padding(horizontal = 14.dp, vertical = 12.dp),
                     ) {
                         if (name.isEmpty()) {
-                            Text("예: 양현진", color = MeowColors.TextTertiary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text("예: 양현진", style = MeowType.Body, color = MeowColors.TextTertiary)
                         }
                         field()
                     }
@@ -258,7 +253,7 @@ private fun AccountLine(upn: String, reportName: String?, onChangeName: () -> Un
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val muted = TextStyle(color = MeowColors.TextTertiary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+        val muted = MeowType.Meta.copy(color = MeowColors.TextTertiary)
         Text("연결됨 · $upn", style = muted)
         if (reportName != null) {
             Text("· 표 이름 $reportName", style = muted)
@@ -287,7 +282,7 @@ private fun ReportBody(
                 state = state,
                 onSelectPast = viewModel::selectPastWeek,
                 onSelectThisWeek = viewModel::clearPastWeek,
-                modifier = Modifier.width(240.dp),
+                modifier = Modifier.width(264.dp),
             )
         }
         val selectedPast = state.selectedPast.takeIf { showWeeks }
@@ -313,27 +308,24 @@ private fun ReportBody(
                     Text(text = "📭", fontSize = 28.sp)
                     Text(
                         text = "이번 주 보고 메일을 아직 찾지 못했어요",
+                        style = MeowType.SectionHeading,
                         color = MeowColors.TextPrimary,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
                     )
                     Text(
                         text = "메일을 받은 뒤 오른쪽 위 동기화를 누르면 초안을 만들어 드려요",
+                        style = MeowType.Meta,
                         color = MeowColors.TextTertiary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
                     )
                 }
                 is WeeklyContent.Failed -> WeeklyCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text("동기화하지 못했어요", color = MeowColors.Error, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("동기화하지 못했어요", style = MeowType.SectionHeading, color = MeowColors.Error)
                     Text(
                         text = content.message,
+                        style = MeowType.Meta,
                         color = MeowColors.TextSecondary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center,
                     )
                     Spacer(Modifier.height(4.dp))
@@ -402,27 +394,26 @@ private fun WeekList(
                     .clickable(enabled = if (isThisWeek) selectedId != null else doc != null) {
                         if (isThisWeek) onSelectThisWeek() else doc?.let(onSelectPast)
                     }
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                    .padding(horizontal = 12.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
                         text = "Week ${item.week}" + if (isThisWeek) " · 이번 주" else "",
+                        style = MeowType.Title,
                         color = if (isThisWeek) MeowColors.Brand else MeowColors.TextPrimary,
-                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
                         text = "${monday.month.number}/${monday.day} – ${friday.month.number}/${friday.day}",
+                        style = MeowType.Meta,
                         color = MeowColors.TextTertiary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
                     )
                 }
                 if (badge != null) {
                     StatusBadge(text = badge.first, color = badge.second)
                 } else {
-                    Text("—", color = MeowColors.TextTertiary, fontSize = 12.sp)
+                    Text("—", style = MeowType.Meta, color = MeowColors.TextTertiary)
                 }
             }
         }
@@ -447,24 +438,23 @@ private fun DocumentCard(
             Text(
                 text = row.header.title ?: row.doc.name.removeSuffix(".docx"),
                 modifier = Modifier.weight(1f),
+                style = MeowType.Title,
                 color = MeowColors.TextPrimary,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
             )
             Text(
                 text = "Word 문서 미리보기 · 편집 가능",
+                style = MeowType.Meta,
                 color = MeowColors.TextTertiary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
             )
         }
         if (!row.found) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "표에서 '$myName' 행을 찾지 못했어요. 표에 적힌 이름과 같은지 확인해 주세요",
+                    style = MeowType.Meta,
                     color = MeowColors.Error,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
                 )
                 LinkText("이름 바꾸기", onClick = onChangeName)
             }
@@ -490,10 +480,10 @@ private fun DocumentCard(
             )
         }
         listOfNotNull(found.draftError, found.planDraftError).forEach {
-            Text(text = it, color = MeowColors.Warning, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            Text(text = it, style = MeowType.Meta, color = MeowColors.Warning)
         }
         listOfNotNull(found.draftNote, found.planDraftNote).forEach {
-            Text(text = it, color = MeowColors.TextSecondary, fontSize = 12.sp)
+            Text(text = it, style = MeowType.Meta, color = MeowColors.TextSecondary)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             row.doc.webUrl?.let { url -> OpenOriginalButton(onClick = { onOpenUrl(url) }) }
@@ -501,8 +491,8 @@ private fun DocumentCard(
             found.saveMessage?.let { message ->
                 Text(
                     text = message.text,
+                    style = MeowType.Meta,
                     color = if (message.ok) MeowColors.Success else MeowColors.Error,
-                    fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -529,22 +519,21 @@ private fun PastWeekCard(
             Text(
                 text = "Week ${doc.week} · ${monday.month.number}/${monday.day} – ${friday.month.number}/${friday.day}",
                 modifier = Modifier.weight(1f),
+                style = MeowType.Title,
                 color = MeowColors.TextPrimary,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
             )
             Text(
                 text = "지난 주차 · 읽기 전용",
+                style = MeowType.Meta,
                 color = MeowColors.TextTertiary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
             )
         }
         Text(
             text = row?.header?.title ?: doc.name.removeSuffix(".docx"),
+            style = MeowType.Meta,
             color = MeowColors.TextTertiary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
         )
         when {
             row != null && (row.results.isNotEmpty() || row.plans.isNotEmpty()) -> {
@@ -557,21 +546,20 @@ private fun PastWeekCard(
             }
             row != null -> Text(
                 text = "이 주에는 작성한 내용이 없어요",
+                style = MeowType.Body,
                 color = MeowColors.TextSecondary,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
             )
             selection.error != null -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(text = selection.error, color = MeowColors.Error, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text(text = selection.error, style = MeowType.Meta, color = MeowColors.Error)
                 OutlineButton(text = "다시 시도", onClick = onRetry)
             }
             else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(modifier = Modifier.size(14.dp), color = MeowColors.Brand, strokeWidth = 2.dp)
-                Text("문서를 읽는 중이에요…", color = MeowColors.TextTertiary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text("문서를 읽는 중이에요…", style = MeowType.Meta, color = MeowColors.TextTertiary)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            LinkText("이번 주로 돌아가기", onClick = onBack, fontSize = 12.sp)
+            LinkText("이번 주로 돌아가기", onClick = onBack)
             Spacer(Modifier.weight(1f))
             doc.webUrl?.let { url -> OpenOriginalButton(onClick = { onOpenUrl(url) }) }
         }
@@ -586,22 +574,20 @@ private fun ReadOnlyCellRow(label: String, lines: List<String>) {
                 .width(200.dp)
                 .fillMaxHeight()
                 .background(MeowColors.Background)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
-            Text(text = label, color = MeowColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text(text = label, style = MeowType.SectionHeading, color = MeowColors.TextPrimary)
         }
         Box(Modifier.width(1.dp).fillMaxHeight().background(MeowColors.GlassBorder))
-        Box(modifier = Modifier.weight(1f).heightIn(min = 44.dp).padding(horizontal = 14.dp, vertical = 12.dp)) {
+        Box(modifier = Modifier.weight(1f).heightIn(min = 52.dp).padding(horizontal = 16.dp, vertical = 14.dp)) {
             if (lines.isEmpty()) {
-                Text("—", color = MeowColors.TextTertiary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Text("—", style = MeowType.Body, color = MeowColors.TextTertiary)
             } else {
                 SelectionContainer {
                     Text(
                         text = lines.joinToString("\n"),
+                        style = MeowType.Body,
                         color = MeowColors.TextPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        lineHeight = 21.sp,
                     )
                 }
             }
@@ -624,10 +610,10 @@ private fun CellRow(
                 .width(200.dp)
                 .fillMaxHeight()
                 .background(MeowColors.Background)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(text = label, color = MeowColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text(text = label, style = MeowType.SectionHeading, color = MeowColors.TextPrimary)
             if (draft) StatusBadge(text = "초안", color = MeowColors.Warning)
         }
         Box(Modifier.width(1.dp).fillMaxHeight().background(MeowColors.GlassBorder))
@@ -635,13 +621,13 @@ private fun CellRow(
             value = value,
             onValueChange = onValueChange,
             enabled = enabled,
-            modifier = Modifier.weight(1f).heightIn(min = 44.dp),
-            textStyle = TextStyle(color = MeowColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium, lineHeight = 21.sp),
+            modifier = Modifier.weight(1f).heightIn(min = 52.dp),
+            textStyle = MeowType.Body.copy(color = MeowColors.TextPrimary),
             cursorBrush = SolidColor(MeowColors.Brand),
             decorationBox = { field ->
-                Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
                     if (value.isEmpty()) {
-                        Text(placeholder, color = MeowColors.TextTertiary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text(placeholder, style = MeowType.Body, color = MeowColors.TextTertiary)
                     }
                     field()
                 }
@@ -681,9 +667,8 @@ private fun ConfirmPublishDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
             Text("문서에 반영", color = MeowColors.TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
             Text(
                 text = "공용 문서의 내 칸(실적 · 계획)만 바꿔요. 반영할까요?",
+                style = MeowType.Body,
                 color = MeowColors.TextSecondary,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
             )
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
                 OutlineButton(text = "취소", onClick = onDismiss)
@@ -704,7 +689,7 @@ private fun WeeklyCard(
     Column(
         modifier = modifier.glassSurface(corner = 20.dp).padding(horizontal = 28.dp, vertical = 24.dp),
         horizontalAlignment = horizontalAlignment,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) { content() }
 }
 
@@ -717,19 +702,18 @@ private fun StatusBadge(text: String, color: Color) {
             .background(color.copy(alpha = 0.12f))
             .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(999.dp))
             .padding(horizontal = 8.dp, vertical = 3.dp),
+        style = MeowType.Badge,
         color = color,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.SemiBold,
     )
 }
 
 @Composable
-private fun LinkText(text: String, onClick: () -> Unit, fontSize: androidx.compose.ui.unit.TextUnit = 11.sp) {
+private fun LinkText(text: String, onClick: () -> Unit) {
     Text(
         text = text,
         modifier = Modifier.clip(RoundedCornerShape(4.dp)).clickable(onClick = onClick).padding(horizontal = 2.dp),
+        style = MeowType.Meta,
         color = MeowColors.Brand,
-        fontSize = fontSize,
         fontWeight = FontWeight.SemiBold,
     )
 }
@@ -742,8 +726,8 @@ private fun TextButton(text: String, onClick: () -> Unit) {
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 11.dp),
+        style = MeowType.Meta,
         color = MeowColors.TextSecondary,
-        fontSize = 13.sp,
         fontWeight = FontWeight.SemiBold,
     )
 }
@@ -762,7 +746,7 @@ private fun BrandButton(text: String, onClick: () -> Unit, enabled: Boolean = tr
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (loading) CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 2.dp)
-        Text(text = text, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(text = text, style = MeowType.Meta, color = Color.White, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -781,6 +765,6 @@ private fun OutlineButton(text: String, onClick: () -> Unit, enabled: Boolean = 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (loading) CircularProgressIndicator(modifier = Modifier.size(14.dp), color = MeowColors.Brand, strokeWidth = 2.dp)
-        Text(text = text, color = MeowColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(text = text, style = MeowType.Meta, color = MeowColors.TextPrimary, fontWeight = FontWeight.SemiBold)
     }
 }
