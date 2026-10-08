@@ -67,7 +67,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg)
             packageName = "Meow"
-            packageVersion = "1.2.0"
+            packageVersion = "1.3.0"
             description = "Personal PR review dashboard for Team-AIVN"
             copyright = "© 2026 aivn"
             vendor = "aivn"
