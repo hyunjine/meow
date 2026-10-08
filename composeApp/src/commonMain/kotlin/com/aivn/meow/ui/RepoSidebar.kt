@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
+import com.aivn.meow.ui.common.MeowType
 
 /** 사이드바 레포 한 줄. [count] 는 모든 탭 항목 중 이 레포 항목 수 (url 중복 제외). */
 internal data class RepoInfo(val name: String, val color: Color, val count: Int)
@@ -53,8 +54,8 @@ internal fun RepoSidebar(
             Text(
                 text = "즐겨찾기",
                 modifier = Modifier.weight(1f),
+                style = MeowType.Meta,
                 color = MeowColors.TextTertiary,
-                fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
@@ -63,8 +64,8 @@ internal fun RepoSidebar(
                     .clip(RoundedCornerShape(8.dp))
                     .clickable(onClick = onManage)
                     .padding(horizontal = 8.dp, vertical = 2.dp),
+                style = MeowType.Meta,
                 color = MeowColors.Brand,
-                fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
             )
         }
@@ -73,9 +74,8 @@ internal fun RepoSidebar(
             Text(
                 text = "관리에서 레포를 즐겨찾기해 보세요",
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                style = MeowType.Meta,
                 color = MeowColors.TextTertiary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
             )
         }
         repos.forEach { repo ->
@@ -98,7 +98,7 @@ private fun RepoRow(name: String, color: Color?, count: Int, selected: Boolean, 
             .clip(RoundedCornerShape(12.dp))
             .background(if (selected) MeowColors.Brand.copy(alpha = 0.10f) else Color.Transparent)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 11.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -113,7 +113,7 @@ private fun RepoRow(name: String, color: Color?, count: Int, selected: Boolean, 
                 empty -> MeowColors.TextTertiary
                 else -> MeowColors.TextPrimary
             },
-            fontSize = 14.sp,
+            fontSize = 15.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -121,8 +121,8 @@ private fun RepoRow(name: String, color: Color?, count: Int, selected: Boolean, 
         if (!empty) {
             Text(
                 text = count.toString(),
+                style = MeowType.Badge,
                 color = if (selected) MeowColors.Brand else MeowColors.TextTertiary,
-                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
             )
         }

@@ -14,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.aivn.meow.model.ItemKind
 import com.aivn.meow.model.SectionItem
 import com.aivn.meow.theme.MeowColors
@@ -25,6 +24,7 @@ import com.aivn.meow.ui.DotSeparator
 import com.aivn.meow.ui.CardActions
 import com.aivn.meow.ui.PillChip
 import com.aivn.meow.ui.cardBorderColor
+import com.aivn.meow.ui.common.MeowType
 import com.aivn.meow.ui.titleWithNumber
 import com.aivn.meow.util.relativeTime
 
@@ -48,14 +48,14 @@ internal fun SectionRow(
                 borderWidth = if (isSelected) 2.dp else 1.dp,
             )
             .clickable(onClick = onToggleExpand)
-            .padding(horizontal = 20.dp, vertical = 18.dp),
+            .padding(horizontal = 20.dp, vertical = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         AuthorAvatar(initials = item.authorInitials, color = item.repoColor)
 
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -70,26 +70,25 @@ internal fun SectionRow(
                 Text(
                     text = "@${item.author}",
                     modifier = Modifier.align(Alignment.CenterVertically),
+                    style = MeowType.Meta,
                     color = MeowColors.TextSecondary,
-                    fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     text = relativeTime(item.updatedAtIso),
                     modifier = Modifier.align(Alignment.CenterVertically),
+                    style = MeowType.Meta,
                     color = MeowColors.TextTertiary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
                 )
             }
 
-            Text(text = titleWithNumber(item.title, item.number))
+            Text(text = titleWithNumber(item.title, item.number), style = MeowType.Title)
 
             item.detail?.let { detail ->
                 Text(
                     text = detail,
+                    style = MeowType.Meta,
                     color = MeowColors.TextSecondary,
-                    fontSize = 13.sp,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )

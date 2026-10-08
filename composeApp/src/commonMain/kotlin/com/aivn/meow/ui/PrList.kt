@@ -44,6 +44,7 @@ import com.aivn.meow.model.CiStatus
 import com.aivn.meow.model.PullRequest
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
+import com.aivn.meow.ui.common.MeowType
 import com.aivn.meow.ui.common.OpenOriginalButton
 import com.aivn.meow.ui.markdown.MarkdownBody
 
@@ -72,8 +73,8 @@ internal fun SortChip(sortOption: PrSortOption, onSortSelect: (PrSortOption) -> 
                     text = {
                         Text(
                             text = option.label,
+                            style = MeowType.Meta,
                             color = if (isSelected) MeowColors.Brand else MeowColors.TextPrimary,
-                            fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                         )
                     },
@@ -116,12 +117,12 @@ internal fun GlassChip(
             .background(bg)
             .border(1.dp, stroke, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 9.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         leading?.invoke()
-        Text(text = text, color = textColor, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text(text = text, style = MeowType.Meta, color = textColor, fontWeight = FontWeight.SemiBold)
         if (trailingArrow) {
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
@@ -156,14 +157,14 @@ internal fun PrRow(
                 borderWidth = if (isSelected) 2.dp else 1.dp,
             )
             .clickable(onClick = onToggleExpand)
-            .padding(horizontal = 20.dp, vertical = 18.dp),
+            .padding(horizontal = 20.dp, vertical = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         AuthorAvatar(initials = pr.authorInitials, color = pr.repoColor)
 
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -174,20 +175,19 @@ internal fun PrRow(
                 Text(
                     text = "@${pr.author}",
                     modifier = Modifier.align(Alignment.CenterVertically),
+                    style = MeowType.Meta,
                     color = MeowColors.TextSecondary,
-                    fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     text = pr.relativeTime,
                     modifier = Modifier.align(Alignment.CenterVertically),
+                    style = MeowType.Meta,
                     color = MeowColors.TextTertiary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
                 )
             }
 
-            Text(text = titleWithNumber(pr.title, pr.number))
+            Text(text = titleWithNumber(pr.title, pr.number), style = MeowType.Title)
 
             CardBody(body = pr.body, isExpanded = isExpanded)
 
@@ -258,13 +258,16 @@ internal fun AuthorAvatar(initials: String, color: Color) {
     }
 }
 
-/** 제목 뒤에 두 칸 띄우고 `#번호` 를 붙인 한 덩어리 텍스트. 좁은 카드에서 함께 줄바꿈된다. */
+/**
+ * 제목 뒤에 두 칸 띄우고 `#번호` 를 붙인 한 덩어리 텍스트. 좁은 카드에서 함께 줄바꿈된다.
+ * 크기 · 줄 간격은 `style = MeowType.Title` 로 그리는 쪽에서 준다.
+ */
 internal fun titleWithNumber(title: String, number: Int): AnnotatedString = buildAnnotatedString {
-    withStyle(SpanStyle(color = MeowColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)) {
+    withStyle(SpanStyle(color = MeowColors.TextPrimary, fontWeight = FontWeight.SemiBold)) {
         append(title)
     }
     append("  ")
-    withStyle(SpanStyle(color = MeowColors.TextTertiary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)) {
+    withStyle(SpanStyle(color = MeowColors.TextTertiary, fontSize = 14.sp, fontWeight = FontWeight.Medium)) {
         append("#$number")
     }
 }
@@ -276,9 +279,9 @@ internal fun PillChip(text: String, color: Color) {
             .clip(RoundedCornerShape(999.dp))
             .background(color.copy(alpha = 0.14f))
             .border(1.dp, color.copy(alpha = 0.4f), RoundedCornerShape(999.dp))
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {
-        Text(text = text, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text(text = text, style = MeowType.Badge, color = color, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -296,16 +299,16 @@ private fun CiChip(status: CiStatus) {
             .clip(RoundedCornerShape(999.dp))
             .background(color.copy(alpha = 0.16f))
             .border(1.dp, color.copy(alpha = 0.4f), RoundedCornerShape(999.dp))
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = 10.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(color))
-        Text(text = label, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        Text(text = label, style = MeowType.Badge, color = color, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
 internal fun DotSeparator(modifier: Modifier = Modifier) {
-    Text(text = "·", modifier = modifier, color = MeowColors.TextTertiary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    Text(text = "·", modifier = modifier, style = MeowType.Meta, color = MeowColors.TextTertiary)
 }

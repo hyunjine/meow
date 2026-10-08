@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
+import com.aivn.meow.ui.common.MeowType
 
 /** 탭 칩 하나에 표시할 내용. [hasNew] 면 칩 오른쪽 위에 빨간 점을 찍는다. */
 internal data class TabChipInfo(val label: String, val count: Int, val hasNew: Boolean)
@@ -94,7 +95,7 @@ private fun TabChip(tab: TabChipInfo, selected: Boolean, onClick: () -> Unit) {
             Text(
                 text = tab.label,
                 color = if (selected) Color.White else MeowColors.TextPrimary,
-                fontSize = 14.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
             )
             Box(
@@ -105,8 +106,8 @@ private fun TabChip(tab: TabChipInfo, selected: Boolean, onClick: () -> Unit) {
             ) {
                 Text(
                     text = tab.count.toString(),
+                    style = MeowType.Badge,
                     color = if (selected) Color.White else MeowColors.Brand,
-                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                 )
             }
@@ -173,20 +174,18 @@ internal fun EmptyStateCard(
             .glassSurface(corner = 20.dp)
             .padding(horizontal = 24.dp, vertical = 36.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
             text = title,
+            style = MeowType.SectionHeading,
             color = titleColor,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
         )
         Text(
             text = hint,
+            style = MeowType.Meta,
             color = MeowColors.TextTertiary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
         )
     }

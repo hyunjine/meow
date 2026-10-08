@@ -54,6 +54,7 @@ import com.aivn.meow.model.PullRequest
 import com.aivn.meow.model.SectionItem
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
+import com.aivn.meow.ui.common.MeowType
 import com.aivn.meow.ui.common.PageHeader
 import com.aivn.meow.ui.common.pageBodyWidth
 import com.aivn.meow.ui.common.pageContent
@@ -454,8 +455,8 @@ private fun SectionTabContent(
             result.errorMessage?.let { message ->
                 Text(
                     text = "불러오지 못했어요 · $message",
+                    style = MeowType.Meta,
                     color = MeowColors.Error,
-                    fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -531,14 +532,14 @@ private fun CenteredError(failure: LoadFailure, onRetry: () -> Unit) {
         Text(
             text = failure.message,
             modifier = Modifier.padding(top = 12.dp),
+            style = MeowType.Body,
             color = MeowColors.TextSecondary,
-            fontSize = 13.sp,
         )
         Text(
             text = guide.hint,
             modifier = Modifier.padding(top = 8.dp),
+            style = MeowType.Meta,
             color = MeowColors.TextTertiary,
-            fontSize = 12.sp,
         )
         RetryButton(onClick = onRetry, modifier = Modifier.padding(top = 20.dp))
     }
@@ -563,14 +564,13 @@ private fun RefreshErrorBanner(failure: LoadFailure, onRetry: () -> Unit, modifi
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = "$title · 마지막으로 불러온 목록을 표시 중이에요",
+                style = MeowType.SectionHeading,
                 color = MeowColors.Error,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
             )
             Text(
                 text = detail,
+                style = MeowType.Meta,
                 color = MeowColors.TextSecondary,
-                fontSize = 12.sp,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -591,6 +591,6 @@ private fun RetryButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Default.Refresh, null, tint = MeowColors.Surface, modifier = Modifier.size(14.dp))
-        Text(text = "다시 시도", color = MeowColors.Surface, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text(text = "다시 시도", style = MeowType.Meta, color = MeowColors.Surface, fontWeight = FontWeight.SemiBold)
     }
 }
