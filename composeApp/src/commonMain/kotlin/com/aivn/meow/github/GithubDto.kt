@@ -38,7 +38,7 @@ data class Search(
 data class PullRequestNode(
     val number: Int,
     val title: String,
-    val bodyText: String = "",
+    val body: String = "",
     val url: String,
     val isDraft: Boolean,
     val createdAt: String,

@@ -62,12 +62,12 @@ internal fun List<SectionResult>.keepPreviousOnError(previous: List<SectionResul
         prior.copy(errorMessage = result.errorMessage)
     }
 
-/** 검색 노드의 공통 필드를 [SectionItem] 으로 매핑. 섹션 전용 정보는 [badges] / [detail] 로 덧붙이고, [body] 는 기본으로 노드의 bodyText. */
+/** 검색 노드의 공통 필드를 [SectionItem] 으로 매핑. 섹션 전용 정보는 [badges] / [detail] 로 덧붙이고, [body] 는 기본으로 노드의 본문(markdown). */
 fun SearchItemFields.toSectionItem(
     badges: List<Label> = emptyList(),
     detail: String? = null,
     updatedAtIso: String = updatedAt,
-    body: String? = bodyText,
+    body: String? = this.body,
 ): SectionItem {
     val repoShort = repository.nameWithOwner.substringAfter('/', repository.nameWithOwner)
     val repoColor = colorForRepo(repoShort)
