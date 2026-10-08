@@ -105,7 +105,7 @@ class GithubClient(
     private fun buildQuery(org: String) = """
         query {
           viewer { login name avatarUrl }
-          search(query: "org:$org is:pr is:open review-requested:@me archived:false", type: ISSUE, first: 50) {
+          search(query: "${dashboardScope(org)} is:pr is:open review-requested:@me archived:false", type: ISSUE, first: 50) {
             issueCount
             nodes {
               ... on PullRequest {

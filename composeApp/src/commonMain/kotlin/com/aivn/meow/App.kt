@@ -108,8 +108,8 @@ fun App(
     }
 
     val state by viewModel.state.collectAsState()
-    val favoriteRepos by viewModel.favorites.collectAsState()
-    val orgRepos by viewModel.orgRepos.collectAsState()
+    val repoPrefs by viewModel.repoPrefs.collectAsState()
+    val repoUniverse by viewModel.repoUniverse.collectAsState()
     val snapshot = (state as? DashboardUiState.Loaded)?.snapshot
     val viewerLogin = snapshot?.viewerLogin
     // 앱은 항상 GitHub 화면으로 시작한다 (선택은 저장하지 않음)
@@ -151,9 +151,10 @@ fun App(
                             onRefresh = { viewModel.refresh() },
                             onOpenPr = { pr: PullRequest -> onOpenUrl(pr.url) },
                             onOpenUrl = onOpenUrl,
-                            favoriteRepos = favoriteRepos,
-                            orgRepos = orgRepos,
+                            repoPrefs = repoPrefs,
+                            repoUniverse = repoUniverse,
                             onToggleFavorite = viewModel::toggleFavorite,
+                            onToggleSidebarRepo = viewModel::toggleSidebarRepo,
                         )
                         AppScreen.WEEKLY_REPORT -> WeeklyReportScreen(viewModel = weeklyViewModel, onOpenUrl = onOpenUrl)
                         AppScreen.SCHEDULE -> ScheduleScreen(viewModel = scheduleViewModel, onOpenOutlookCalendar = onOpenOutlookCalendar)

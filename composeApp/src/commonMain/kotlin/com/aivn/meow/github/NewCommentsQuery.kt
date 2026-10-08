@@ -98,8 +98,8 @@ suspend fun GithubClient.searchCommentThreads(org: String, sinceDate: String): C
         query,
         CommentThreadsData.serializer(),
         mapOf(
-            "own" to "org:$org author:@me updated:>=$sinceDate sort:updated-desc",
-            "joined" to "org:$org commenter:@me -author:@me updated:>=$sinceDate sort:updated-desc",
+            "own" to "${dashboardScope(org)} author:@me updated:>=$sinceDate sort:updated-desc",
+            "joined" to "${dashboardScope(org)} commenter:@me -author:@me updated:>=$sinceDate sort:updated-desc",
         ),
     )
 }

@@ -22,4 +22,6 @@ data class PullRequest(
     val url: String,
     /** PR 본문 (plain text). 실시간 이벤트로 들어온 PR 은 null. */
     val body: String? = null,
+    /** #127 `owner/name` (예: `Team-AIVN/ChatSea-Android`). 사이드바 체크 필터 기준. [repo] 는 표시용 짧은 이름. */
+    val repoFullName: String = repo,
 )
