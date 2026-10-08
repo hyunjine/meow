@@ -484,13 +484,16 @@ private fun DocumentCard(
                 label = row.header.plan.label,
                 value = found.planText,
                 onValueChange = onEditPlan,
-                placeholder = "직접 입력해 주세요",
-                draft = false,
+                placeholder = "다음 주 계획을 입력해 주세요",
+                draft = found.planIsDraft,
                 enabled = row.found,
             )
         }
-        found.draftError?.let {
+        listOfNotNull(found.draftError, found.planDraftError).forEach {
             Text(text = it, color = MeowColors.Warning, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        }
+        listOfNotNull(found.draftNote, found.planDraftNote).forEach {
+            Text(text = it, color = MeowColors.TextSecondary, fontSize = 12.sp)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             row.doc.webUrl?.let { url -> OpenOriginalButton(onClick = { onOpenUrl(url) }) }

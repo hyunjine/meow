@@ -49,6 +49,10 @@ data class CachedFound(
     val edited: Boolean = false,
     /** 편집 텍스트가 문서의 내 칸과 다른지(참고용). */
     val differsFromDoc: Boolean = false,
+    /** 계획 칸을 초안으로 채운 상태. 이 필드가 없던 옛 파일은 false 로 읽는다. */
+    val planIsDraft: Boolean = false,
+    /** 동기화 때 만든 계획 초안. 이 필드가 없던 옛 파일은 null 로 읽는다. */
+    val planDraftLines: List<String>? = null,
 )
 
 internal val weeklyCacheJson = Json {
@@ -90,6 +94,8 @@ internal fun WeeklyUiState.toCache(): WeeklyCache? {
                 draftLines = it.draftLines,
                 edited = it.edited,
                 differsFromDoc = it.differsFromDoc(),
+                planIsDraft = it.planIsDraft,
+                planDraftLines = it.planDraftLines,
             )
         },
         weekStatus = weekStatus,
@@ -111,6 +117,8 @@ internal fun WeeklyUiState.restoredFrom(cache: WeeklyCache?): WeeklyUiState {
                 draftLines = it.draftLines,
                 eTag = it.eTag,
                 edited = it.edited,
+                planIsDraft = it.planIsDraft,
+                planDraftLines = it.planDraftLines,
             )
         }
         cache.notFound -> WeeklyContent.NotFound
@@ -147,6 +155,7 @@ internal fun mergeUnsavedEdits(previous: WeeklyContent?, fresh: WeeklyContent.Fo
         resultText = prev.resultText,
         planText = prev.planText,
         resultIsDraft = prev.resultIsDraft,
+        planIsDraft = prev.planIsDraft,
         edited = true,
     )
 }
