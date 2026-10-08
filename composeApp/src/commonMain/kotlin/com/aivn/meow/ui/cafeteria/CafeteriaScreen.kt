@@ -223,9 +223,9 @@ private fun WeekContent(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.Top,
             ) {
-                Box(Modifier.weight(1f)) { weeklyCard() }
+                Box(Modifier.weight(WeeklyColumnWeight)) { weeklyCard() }
                 Column(
-                    modifier = Modifier.width(DayColumnWidth),
+                    modifier = Modifier.weight(DayColumnWeight),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) { dayCards() }
             }
@@ -244,7 +244,10 @@ private fun WeekContent(
 
 /** 주간 메뉴표 옆에 요일 카드 열을 둘 수 있는 최소 본문 폭. 이보다 좁으면 세로로 쌓는다. */
 private val SideLayoutMinWidth = 760.dp
-private val DayColumnWidth = 240.dp
+
+/** 주간 메뉴표 : 요일 카드 열 폭 비율 (Figma 632 : 240). 창이 넓어지면 둘이 같은 비율로 커진다. */
+private const val WeeklyColumnWeight = 0.72f
+private const val DayColumnWeight = 0.28f
 
 @Composable
 private fun WeeklyMenuCard(post: WeeklyMenuPost?, onOpenUrl: (String) -> Unit, onOpen: (WeeklyMenuPost) -> Unit) {
