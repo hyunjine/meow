@@ -18,7 +18,7 @@ data class DiscussionTarget(
     val updatedAtIso: String,
 )
 
-/** #131 카드의 댓글 탭(타임라인 + 코드 댓글, 오래된 순)과 리뷰 탭(제출된 리뷰, 오래된 순). claude[bot] 은 빠져 있다. */
+/** #131 카드의 댓글 탭(타임라인 + 코드 댓글, 오래된 순)과 리뷰 탭(제출된 리뷰, 오래된 순). */
 data class CardDiscussion(
     val comments: List<DiscussionComment>,
     val reviews: List<DiscussionReview>,
@@ -72,11 +72,10 @@ suspend fun GithubClient.loadCardDiscussion(target: DiscussionTarget): CardDiscu
  * #131 응답을 탭 목록으로 바꾼다.
  * - 댓글: 타임라인 댓글 + 제출된 리뷰의 코드 댓글(작성 중 PENDING 리뷰 제외), 작성 시각 오래된 순.
  * - 리뷰: 승인 · 변경 요청은 본문이 없어도, 의견(COMMENTED)은 본문이 있을 때만. 제출 시각 오래된 순.
- * - claude[bot] 이 쓴 항목은 모두 뺀다.
+ * - claude[bot] 리뷰 · 댓글도 그대로 보여 준다 (새 댓글 탭 · 알림에서만 뺀다, #139).
  */
 fun buildCardDiscussion(comments: List<DiscussionCommentNode>, reviews: List<ReviewNode>): CardDiscussion {
     val timeline = comments
-        .filterNot { it.author.isBot() }
         .map { node ->
             DiscussionComment(
                 author = node.author?.login ?: GHOST_LOGIN,
@@ -89,7 +88,6 @@ fun buildCardDiscussion(comments: List<DiscussionCommentNode>, reviews: List<Rev
     val codeComments = reviews
         .filter { it.state != "PENDING" }
         .flatMap { review -> review.comments.nodes.filterNotNull() }
-        .filterNot { it.author.isBot() }
         .map { node ->
             DiscussionComment(
                 author = node.author?.login ?: GHOST_LOGIN,
@@ -105,7 +103,6 @@ fun buildCardDiscussion(comments: List<DiscussionCommentNode>, reviews: List<Rev
             )
         }
     val submitted = reviews
-        .filterNot { it.author.isBot() }
         .mapNotNull { node ->
             val verdict = when (node.state) {
                 "APPROVED" -> ReviewVerdict.Approved
@@ -137,7 +134,6 @@ fun diffHunkTail(diffHunk: String?, lines: Int = SNIPPET_LINES): List<String> {
         .takeLast(lines)
 }
 
-private fun DiscussionAuthor?.isBot(): Boolean = this != null && isClaudeBot(login, typename)
 
 /** 시각을 알 수 없으면 맨 뒤로. sortedBy 는 안정 정렬이라 같은 시각은 원래 순서를 유지한다. */
 private fun epochMillisOrMax(iso: String): Long =
