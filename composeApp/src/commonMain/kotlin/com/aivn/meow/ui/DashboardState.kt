@@ -12,6 +12,7 @@ import com.aivn.meow.data.RepoUniverse
 import com.aivn.meow.data.keepPreviousOnError
 import com.aivn.meow.data.workingRepos
 import com.aivn.meow.github.GithubApiException
+import com.aivn.meow.ui.card.CardDiscussionStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -96,6 +97,9 @@ class DashboardViewModel(
     private var favoritesSeeded = restoredPrefs.prefs != null
     private val _repoPrefs = MutableStateFlow(restoredPrefs.prefs ?: RepoPrefs())
     val repoPrefs: StateFlow<RepoPrefs> = _repoPrefs.asStateFlow()
+
+    /** #131 펼친 카드의 댓글 · 리뷰 캐시 (항목 url 별) 와 카드별 선택 탭. */
+    val discussions = CardDiscussionStore(scope) { target -> repository.loadDiscussion(target) }
 
     private var pollJob: Job? = null
     private var manualJob: Job? = null

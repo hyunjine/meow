@@ -14,6 +14,7 @@ object AssignedIssuesSection : DashboardSection {
     override val tabLabel = "할당 이슈"
     override val emptyTitle = "할당된 이슈가 없습니다 🎉"
     override val emptyHint = "새로 할당되면 여기에 표시돼요"
+    override val showsDiscussion = true
 
     override suspend fun load(client: GithubClient, org: String): SectionData {
         val result = client.searchItems("${dashboardScope(org)} assignee:@me is:issue is:open")
