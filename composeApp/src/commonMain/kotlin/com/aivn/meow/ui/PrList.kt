@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -33,6 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -233,18 +236,28 @@ internal fun ExpandableCard(
     expanded: (@Composable () -> Unit)?,
 ) {
     val showExpanded = isExpanded && expanded != null
+    // 카드에는 리플을 그리지 않는다. 접혀 있을 땐 카드 전체, 펼쳐 있을 땐 헤더만 눌러 펼치고 접는다.
     Column(
-        modifier = modifier.glassSurface(
-            corner = 20.dp,
-            fill = MeowColors.GlassSurface,
-            borderColor = cardBorderColor(isSelected, isExpanded),
-            borderWidth = if (isSelected) 2.dp else 1.dp,
-        ),
+        modifier = modifier
+            .glassSurface(
+                corner = 20.dp,
+                fill = MeowColors.GlassSurface,
+                borderColor = cardBorderColor(isSelected, isExpanded),
+                borderWidth = if (isSelected) 2.dp else 1.dp,
+            )
+            .clip(RoundedCornerShape(20.dp))
+            .then(if (showExpanded) Modifier else Modifier.noRippleClickable(onToggleExpand)),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onToggleExpand)
+                .then(
+                    if (showExpanded) {
+                        Modifier.noRippleClickable(onToggleExpand)
+                    } else {
+                        Modifier
+                    },
+                )
                 .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = if (showExpanded) 14.dp else 20.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             content = header,
@@ -256,6 +269,12 @@ internal fun ExpandableCard(
         }
     }
 }
+
+/** 리플 없이 눌리고, 마우스를 올리면 손가락 커서를 보여 준다. */
+@Composable
+private fun Modifier.noRippleClickable(onClick: () -> Unit): Modifier =
+    clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
+        .pointerHoverIcon(PointerIcon.Hand)
 
 /** 키보드 선택 > 펼침 > 기본 순으로 카드 테두리 색을 고른다. */
 internal fun cardBorderColor(isSelected: Boolean, isExpanded: Boolean): Color = when {
