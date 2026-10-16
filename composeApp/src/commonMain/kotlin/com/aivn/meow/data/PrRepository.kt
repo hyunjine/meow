@@ -72,7 +72,10 @@ data class RepoUniverse(
 
 /** '작업 중' 레포(`owner/name`): 어느 탭에든 항목이 하나라도 있는 레포. */
 fun DashboardSnapshot.workingRepos(): List<String> =
-    (pullRequests.map { it.repoFullName } + sections.flatMap { result -> result.items.map { it.repoFullName } }).distinct()
+    (
+        pullRequests.map { it.repoFullName } +
+            sections.filter { it.section.seedsFavorites }.flatMap { result -> result.items.map { it.repoFullName } }
+        ).distinct()
 
 private fun PullRequestNode.toDomain(): PullRequest {
     val repoShort = repository.nameWithOwner.substringAfter('/', repository.nameWithOwner)
