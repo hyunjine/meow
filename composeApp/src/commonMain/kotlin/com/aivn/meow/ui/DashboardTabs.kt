@@ -48,10 +48,11 @@ internal fun DashboardTabBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(
+        // 탭이 한 줄에 다 안 들어가면 잘리지 않고 다음 줄로 넘어간다.
+        FlowRow(
             modifier = Modifier.align(Alignment.CenterVertically),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             tabs.forEachIndexed { index, tab ->
                 TabChip(tab = tab, selected = index == selectedIndex, onClick = { onSelect(index) })
