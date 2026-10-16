@@ -55,7 +55,6 @@ import com.aivn.meow.data.isOverdue
 import com.aivn.meow.data.onlyCheckedRepos
 import com.aivn.meow.data.repoShortName
 import com.aivn.meow.model.PullRequest
-import com.aivn.meow.model.SectionItem
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
 import com.aivn.meow.ui.card.CardDiscussionStore
@@ -64,9 +63,12 @@ import com.aivn.meow.ui.common.MeowType
 import com.aivn.meow.ui.common.PageHeader
 import com.aivn.meow.ui.common.pageBodyWidth
 import com.aivn.meow.ui.common.pageContent
-import com.aivn.meow.ui.pr.MergeFooter
+import com.aivn.meow.ui.detail.DetailItem
+import com.aivn.meow.ui.detail.DetailModal
+import com.aivn.meow.ui.detail.toDetailItem
+import com.aivn.meow.ui.sections.MentionsSection
+import com.aivn.meow.ui.sections.MyIssueCommentsSection
 import com.aivn.meow.ui.sections.MyPrStatusSection
-import com.aivn.meow.ui.sections.SectionRow
 import com.aivn.meow.util.formatKst
 import com.aivn.meow.util.formatSyncLabel
 import com.aivn.meow.util.relativeTime
@@ -153,8 +155,8 @@ private fun DashboardBody(
     // ↑/↓ · j/k 로 이동하는 키보드 포커스 인덱스 (현재 탭 항목 기준)
     // 키보드 선택 인덱스. -1 = 선택 없음 (↑↓ · j/k 를 처음 누를 때 선택 시작)
     var selectedIndex by rememberSaveable { mutableStateOf(-1) }
-    // 본문을 펼친 카드 url. 탭 전환 · 새로고침 후에도 같은 url 이면 펼침을 유지한다.
-    var expandedUrls by rememberSaveable(stateSaver = StringSetSaver) { mutableStateOf(emptySet<String>()) }
+    // #144 상세 모달로 연 항목 url. null = 닫힘. 새로고침 후 현재 탭 목록에서 사라지면 닫는다.
+    var openUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var showRepoManager by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
 
@@ -204,7 +206,21 @@ private fun DashboardBody(
     val tabUrls = listOf(visiblePrs.map { it.url }) + sections.map { result -> visibleItemsOf(result).map { it.url } }
     val tabIndex = selectedTab.coerceIn(0, tabKeys.lastIndex)
     val currentSection = sections.getOrNull(tabIndex - 1)
-    val currentUrls = tabUrls[tabIndex]
+    // #144 현재 탭의 1열 목록 · 상세 모달 항목
+    val currentItems: List<DetailItem> = if (currentSection == null) {
+        visiblePrs.map { it.toDetailItem() }
+    } else {
+        val section = currentSection.section
+        visibleItemsOf(currentSection).map {
+            it.toDetailItem(
+                showDiscussion = section.showsDiscussion,
+                showKind = section.id in MixedKindSectionIds,
+                // #130 내 PR 현황에만 머지 바
+                mergeable = section.id == MyPrStatusSection.id,
+            )
+        }
+    }
+    val currentUrls = currentItems.map { it.url }
 
     // 탭별로 마지막으로 본 항목 url (메모리만). 탭의 첫 정상 결과와 선택 중인 탭은 본 것으로 기록한다.
     // 선택 중인 탭은 화면에 보인(체크한 레포의) 항목만 기존 기록에 더한다.
@@ -241,20 +257,28 @@ private fun DashboardBody(
         selectedIndex = -1
     }
 
-    fun toggleExpanded(url: String) {
-        expandedUrls = if (url in expandedUrls) expandedUrls - url else expandedUrls + url
+    fun openDetail(index: Int) {
+        val url = currentUrls.getOrNull(index) ?: return
+        selectedIndex = index
+        openUrl = url
     }
 
-    fun openSelected() {
-        if (tabIndex == 0) visiblePrs.getOrNull(selectedIndex)?.let(onOpenPr) else currentUrls.getOrNull(selectedIndex)?.let(onOpenUrl)
+    fun openOriginal(item: DetailItem) {
+        val pr = if (tabIndex == 0) visiblePrs.firstOrNull { it.url == item.url } else null
+        if (pr != null) onOpenPr(pr) else onOpenUrl(item.url)
     }
+
+    val openItem = openUrl?.let { url -> currentItems.firstOrNull { it.url == url } }
+    // 열린 항목이 목록에서 빠지면(새로고침 · 사이드바 체크 해제) 모달을 닫는다
+    LaunchedEffect(openUrl, openItem == null) { if (openUrl != null && openItem == null) openUrl = null }
 
     // 정렬 · 새로고침으로 목록이 줄어들면 선택 인덱스를 유효 범위로 맞춘다
     LaunchedEffect(currentUrls.size) {
         if (selectedIndex >= 0) selectedIndex = selectedIndex.coerceAtMost(currentUrls.lastIndex)
     }
-    // 시작 시 · 관리 모달을 닫은 뒤 키보드 단축키가 다시 동작하도록 포커스를 가져온다
-    LaunchedEffect(showRepoManager) { if (!showRepoManager) focusRequester.requestFocus() }
+    // 시작 시 · 관리 모달 · 상세 모달을 닫은 뒤 키보드 단축키가 다시 동작하도록 포커스를 가져온다
+    val anyModalOpen = showRepoManager || openUrl != null
+    LaunchedEffect(anyModalOpen) { if (!anyModalOpen) focusRequester.requestFocus() }
 
     // #127 통계도 체크한 레포의 리뷰 대기 PR 기준
     val overdueCount = visiblePrs.count { isOverdue(snapshot.fetchedAtIso, it.updatedAtIso) }
@@ -308,12 +332,9 @@ private fun DashboardBody(
                             if (currentUrls.isNotEmpty()) selectedIndex = if (selectedIndex < 0) 0 else (selectedIndex - 1).coerceAtLeast(0)
                             true
                         }
-                        Key.Enter, Key.NumPadEnter -> {
-                            openSelected()
-                            true
-                        }
-                        Key.Spacebar -> {
-                            currentUrls.getOrNull(selectedIndex)?.let(::toggleExpanded)
+                        // #144 Enter · Space = 선택한 항목의 상세 모달
+                        Key.Enter, Key.NumPadEnter, Key.Spacebar -> {
+                            openDetail(selectedIndex)
                             true
                         }
                         Key.R -> {
@@ -391,30 +412,28 @@ private fun DashboardBody(
                             if (visiblePrs.isEmpty()) {
                                 EmptyStateCard("리뷰 요청이 없습니다 🎉", "여유로운 하루 보내세요", Modifier.fillMaxWidth())
                             } else {
-                                TwoColumnGrid(visiblePrs, Modifier.fillMaxWidth()) { index, pr, cellModifier ->
-                                    PrRow(
-                                        pr = pr,
-                                        isSelected = index == selectedIndex,
-                                        isExpanded = pr.url in expandedUrls,
-                                        onToggleExpand = { selectedIndex = -1; toggleExpanded(pr.url) },
-                                        onOpen = { onOpenPr(pr) },
-                                        modifier = cellModifier,
-                                    )
-                                }
+                                ItemList(currentItems, selectedIndex, onOpen = ::openDetail)
                             }
                         } else {
                             SectionTabContent(
                                 result = currentSection,
-                                items = visibleItemsOf(currentSection),
+                                items = currentItems,
                                 selectedIndex = selectedIndex,
-                                expandedUrls = expandedUrls,
-                                onToggleExpand = { url -> selectedIndex = -1; toggleExpanded(url) },
-                                onOpenUrl = onOpenUrl,
+                                onOpen = ::openDetail,
                             )
                         }
                     }
                 }
             }
+        }
+        openItem?.let { item ->
+            DetailModal(
+                item = item,
+                onClose = { openUrl = null },
+                onOpenOriginal = { openOriginal(item) },
+                onPrevious = { openDetail(currentUrls.indexOf(item.url) - 1) },
+                onNext = { openDetail(currentUrls.indexOf(item.url) + 1) },
+            )
         }
         if (showRepoManager) {
             RepoManagerDialog(
@@ -430,7 +449,6 @@ private fun DashboardBody(
 
 // 드로워로 다른 화면에 다녀와도 GitHub 화면 상태를 유지하기 위한 Saver (App 의 SaveableStateHolder 에 저장)
 private val SortOptionSaver = Saver<PrSortOption, String>(save = { it.name }, restore = { PrSortOption.valueOf(it) })
-private val StringSetSaver = Saver<Set<String>, ArrayList<String>>(save = { ArrayList(it) }, restore = { it.toSet() })
 private val SeenUrlsSaver = Saver<Map<String, Set<String>>, HashMap<String, ArrayList<String>>>(
     save = { map -> HashMap(map.mapValues { ArrayList(it.value) }) },
     restore = { map -> map.mapValues { it.value.toSet() } },
@@ -445,17 +463,18 @@ private val TabShortcutKeys = listOf(
     Key.One, Key.Two, Key.Three, Key.Four, Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine,
 )
 
+/** #144 이슈 · PR 이 섞여 목록 행에 `PR` / `Issue` 칩을 붙이는 섹션. */
+private val MixedKindSectionIds = setOf(MentionsSection.id, MyIssueCommentsSection.id)
+
 /** 새 항목 점 추적에 쓰는 리뷰 대기 PR 탭 키. 섹션 탭은 섹션 id 를 쓴다. */
 private const val REVIEW_TAB_KEY = "review-requests"
 
 @Composable
 private fun SectionTabContent(
     result: SectionResult,
-    items: List<SectionItem>,
+    items: List<DetailItem>,
     selectedIndex: Int,
-    expandedUrls: Set<String>,
-    onToggleExpand: (String) -> Unit,
-    onOpenUrl: (String) -> Unit,
+    onOpen: (Int) -> Unit,
 ) {
     val section = result.section
     when {
@@ -478,23 +497,17 @@ private fun SectionTabContent(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            TwoColumnGrid(items, Modifier.fillMaxWidth()) { index, item, cellModifier ->
-                SectionRow(
-                    item = item,
-                    isSelected = index == selectedIndex,
-                    isExpanded = item.url in expandedUrls,
-                    onToggleExpand = { onToggleExpand(item.url) },
-                    onOpen = { onOpenUrl(item.url) },
-                    modifier = cellModifier,
-                    showDiscussion = section.showsDiscussion,
-                    // #130 내 PR 현황 카드에만 머지 바
-                    footer = if (section.id == MyPrStatusSection.id) {
-                        { MergeFooter(prUrl = item.url, prNumber = item.number, prTitle = item.title) }
-                    } else {
-                        null
-                    },
-                )
-            }
+            ItemList(items, selectedIndex, onOpen)
+        }
+    }
+}
+
+/** #144 모든 탭 공통 1열 목록. 행 사이 10dp. 행을 누르면 [onOpen] (상세 모달). */
+@Composable
+private fun ItemList(items: List<DetailItem>, selectedIndex: Int, onOpen: (Int) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        items.forEachIndexed { index, item ->
+            ListRow(item = item, isSelected = index == selectedIndex, onClick = { onOpen(index) })
         }
     }
 }
