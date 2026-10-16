@@ -1,6 +1,5 @@
 package com.aivn.meow.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,16 +18,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,58 +38,6 @@ import com.aivn.meow.ui.common.MeowType
 import com.aivn.meow.ui.detail.DetailItem
 import com.aivn.meow.ui.detail.StatusChip
 import com.aivn.meow.util.relativeTime
-
-/** 정렬 칩. 클릭하면 세 정렬 옵션 중 하나를 고르는 드롭다운 메뉴가 뜬다. */
-@Composable
-internal fun SortChip(sortOption: PrSortOption, onSortSelect: (PrSortOption) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        GlassChip(
-            text = "정렬: ${sortOption.label}",
-            trailingArrow = true,
-            onClick = { expanded = true },
-        )
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            shape = RoundedCornerShape(14.dp),
-            containerColor = MeowColors.Surface,
-            border = BorderStroke(1.dp, MeowColors.GlassBorder),
-            tonalElevation = 0.dp,
-            shadowElevation = 6.dp,
-        ) {
-            PrSortOption.entries.forEach { option ->
-                val isSelected = option == sortOption
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = option.label,
-                            style = MeowType.Meta,
-                            color = if (isSelected) MeowColors.Brand else MeowColors.TextPrimary,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    },
-                    trailingIcon = if (isSelected) {
-                        {
-                            Icon(
-                                Icons.Default.Check,
-                                null,
-                                tint = MeowColors.Brand,
-                                modifier = Modifier.size(16.dp),
-                            )
-                        }
-                    } else {
-                        null
-                    },
-                    onClick = {
-                        onSortSelect(option)
-                        expanded = false
-                    },
-                )
-            }
-        }
-    }
-}
 
 @Composable
 internal fun GlassChip(

@@ -149,7 +149,6 @@ private fun DashboardBody(
     onToggleFavorite: (String) -> Unit,
     onToggleSidebarRepo: (String) -> Unit,
 ) {
-    var sortOption by rememberSaveable(stateSaver = SortOptionSaver) { mutableStateOf(PrSortOption.OLDEST) }
     // 0 = 리뷰 대기 PR, 1.. = 보조 섹션. 앱은 항상 리뷰 대기 PR 탭으로 시작한다.
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     // ↑/↓ · j/k 로 이동하는 키보드 포커스 인덱스 (현재 탭 항목 기준)
@@ -163,14 +162,8 @@ private fun DashboardBody(
     val snapshot = state.snapshot
     val prs = snapshot.pullRequests
         .map { it.copy(relativeTime = relativeTime(it.updatedAtIso)) }
-        .let { list ->
-            when (sortOption) {
-                PrSortOption.OLDEST -> list.sortedBy { it.updatedAtIso }
-                PrSortOption.NEWEST -> list.sortedByDescending { it.updatedAtIso }
-                // 레포 이름순으로 묶고, 레포 내에서는 오래된 순.
-                PrSortOption.BY_REPO -> list.sortedWith(compareBy({ it.repo }, { it.updatedAtIso }))
-            }
-        }
+        // 리뷰 대기 PR 은 오래 기다린 것부터 (정렬 선택 없음).
+        .sortedBy { it.updatedAtIso }
 
     val sections = snapshot.sections
     // '모두 확인' 으로 비운 섹션 id. 다음 로딩 결과(fetchedAtIso 가 바뀜)가 오면 초기화된다.
@@ -391,7 +384,6 @@ private fun DashboardBody(
                             onSelect = ::selectTab,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            if (tabIndex == 0) SortChip(sortOption = sortOption, onSortSelect = { sortOption = it })
                             currentSection?.section?.headerAction?.let { action ->
                                 GlassChip(
                                     text = action.label,
@@ -448,7 +440,6 @@ private fun DashboardBody(
 }
 
 // 드로워로 다른 화면에 다녀와도 GitHub 화면 상태를 유지하기 위한 Saver (App 의 SaveableStateHolder 에 저장)
-private val SortOptionSaver = Saver<PrSortOption, String>(save = { it.name }, restore = { PrSortOption.valueOf(it) })
 private val SeenUrlsSaver = Saver<Map<String, Set<String>>, HashMap<String, ArrayList<String>>>(
     save = { map -> HashMap(map.mapValues { ArrayList(it.value) }) },
     restore = { map -> map.mapValues { it.value.toSet() } },
