@@ -21,7 +21,12 @@ data class MyPrStatusNode(
     val reviewThreads: ReviewThreadConnection = ReviewThreadConnection(emptyList()),
     val commits: CommitConnection = CommitConnection(emptyList()),
     val comments: TotalCountNode = TotalCountNode(0),
+    /** #144 리뷰어별 마지막 승인 · 변경 요청 리뷰. '승인 N' 칩에 쓴다. */
+    val latestOpinionatedReviews: ReviewStateConnection = ReviewStateConnection(emptyList()),
 ) : SearchItemFields {
+    /** 리뷰어별 마지막 의견이 승인인 수. */
+    val approvalCount: Int get() = latestOpinionatedReviews.nodes.count { it.state == "APPROVED" }
+
     val unresolvedThreadCount: Int get() = reviewThreads.nodes.count { !it.isResolved }
 
     /** 마지막 커밋의 statusCheckRollup 상태. 체크가 없으면 null. */
@@ -35,6 +40,12 @@ data class ReviewThreadConnection(val nodes: List<ReviewThreadNode>)
 data class ReviewThreadNode(val isResolved: Boolean)
 
 @Serializable
+data class ReviewStateConnection(val nodes: List<ReviewStateNode>)
+
+@Serializable
+data class ReviewStateNode(val state: String)
+
+@Serializable
 data class TotalCountNode(val totalCount: Int)
 
 private const val MY_PR_STATUS_FIELDS = SEARCH_ITEM_FIELDS + """
@@ -43,6 +54,7 @@ private const val MY_PR_STATUS_FIELDS = SEARCH_ITEM_FIELDS + """
     reviewThreads(first: 50) { nodes { isResolved } }
     commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
     comments { totalCount }
+    latestOpinionatedReviews(first: 20) { nodes { state } }
 """
 
 /** `org:$org user:@me author:@me is:pr is:open` 으로 내 열린 PR 과 리뷰 · CI · 댓글 현황을 조회한다. */
