@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.DisableSelection
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -43,6 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -126,13 +129,16 @@ fun CafeteriaScreen(
 
     LaunchedEffect(viewModel) { viewModel.onShown() }
     // 처음 보일 때 · 라이트박스를 닫은 뒤 ←/→ 로 요일을 바꿀 수 있게 포커스를 가져온다
-    LaunchedEffect(lightbox == null) { if (lightbox == null) focusRequester.requestFocus() }
+    // #155 글자를 골라 포커스가 선택 영역으로 간 뒤 그 영역이 사라지면(주 · 요일 전환) 포커스가 비므로 다시 가져온다.
+    var screenHasFocus by remember { mutableStateOf(false) }
+    LaunchedEffect(lightbox == null, screenHasFocus) { if (lightbox == null && !screenHasFocus) focusRequester.requestFocus() }
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .clipToBounds()
             .onGloballyPositioned { tabsAnchor.root = it.positionInRoot() }
+            .onFocusChanged { screenHasFocus = it.hasFocus }
             .focusRequester(focusRequester)
             .focusable()
             .onKeyEvent { event ->
@@ -390,15 +396,21 @@ private fun WeeklyMenuCard(post: WeeklyMenuPost?, onOpenUrl: (String) -> Unit, o
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = "주간 메뉴표", color = MeowColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            // #155 제목 · 게시 정보를 복사할 수 있게 한다.
+            SelectionContainer(modifier = Modifier.weight(1f)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "주간 메뉴표", color = MeowColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    if (post != null) {
+                        Text(
+                            text = listOfNotNull(post.label, "${formatPostTime(post.publishedAt)} 게시").joinToString(" · "),
+                            color = MeowColors.TextTertiary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                }
+            }
             if (post != null) {
-                Text(
-                    text = listOfNotNull(post.label, "${formatPostTime(post.publishedAt)} 게시").joinToString(" · "),
-                    color = MeowColors.TextTertiary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f),
-                )
                 OpenOriginalButton(onClick = { onOpenUrl(post.permalink) })
             }
         }
@@ -424,84 +436,89 @@ private fun WeeklyMenuCard(post: WeeklyMenuPost?, onOpenUrl: (String) -> Unit, o
 private fun DayCard(day: CafeteriaDay, today: LocalDate, modifier: Modifier, onOpenPhoto: (Int) -> Unit) {
     val isToday = day.date == today
     val shape = RoundedCornerShape(14.dp)
-    Column(
-        modifier = modifier
-            .clip(shape)
-            .background(Color.White)
-            .border(if (isToday) 1.5.dp else 1.dp, if (isToday) MeowColors.Brand else CardBorder, shape)
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "${day.date.month.number}월 ${day.date.day}일 ${day.date.dayLetter()}요일 중식",
-                color = if (isToday) MeowColors.Brand else MeowColors.TextPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f),
-            )
-            if (isToday) {
-                Text(text = "오늘", color = MeowColors.Brand, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-            }
-        }
-        val lunch = day.lunch
-        when {
-            lunch != null && lunch.photos.isNotEmpty() -> {
-                KakaoImage(
-                    url = lunch.photos.first().medium,
-                    contentDescription = "중식 사진",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(4f / 3f)
-                        .clip(RoundedCornerShape(8.dp))
-                        .pointerHoverIcon(PointerIcon.Hand)
-                        .clickable { onOpenPhoto(0) },
+    // #155 날짜 · 메뉴 · 안내 문구를 드래그로 골라 ⌘C 로 복사할 수 있게 한다.
+    // 사진은 글자가 아니라 선택 대상이 아니고, 사진 클릭(라이트박스 열기)은 그대로 동작한다.
+    SelectionContainer(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(Color.White)
+                .border(if (isToday) 1.5.dp else 1.dp, if (isToday) MeowColors.Brand else CardBorder, shape)
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "${day.date.month.number}월 ${day.date.day}일 ${day.date.dayLetter()}요일 중식",
+                    color = if (isToday) MeowColors.Brand else MeowColors.TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
                 )
-                if (lunch.photos.size > 1) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        lunch.photos.drop(1).forEachIndexed { i, photo ->
-                            KakaoImage(
-                                url = photo.medium,
-                                contentDescription = "중식 사진",
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .pointerHoverIcon(PointerIcon.Hand)
-                                    .clickable { onOpenPhoto(i + 1) },
-                            )
+                if (isToday) {
+                    Text(text = "오늘", color = MeowColors.Brand, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            val lunch = day.lunch
+            when {
+                lunch != null && lunch.photos.isNotEmpty() -> {
+                    KakaoImage(
+                        url = lunch.photos.first().medium,
+                        contentDescription = "중식 사진",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(4f / 3f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .pointerHoverIcon(PointerIcon.Hand)
+                            .clickable { onOpenPhoto(0) },
+                    )
+                    if (lunch.photos.size > 1) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            lunch.photos.drop(1).forEachIndexed { i, photo ->
+                                KakaoImage(
+                                    url = photo.medium,
+                                    contentDescription = "중식 사진",
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(44.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .pointerHoverIcon(PointerIcon.Hand)
+                                        .clickable { onOpenPhoto(i + 1) },
+                                )
+                            }
+                        }
+                    }
+                    if (lunch.menu.isNotBlank()) {
+                        Text(text = lunch.menu, color = MenuText, fontSize = 12.sp, lineHeight = 17.sp)
+                    }
+                    Text(
+                        text = "${formatClock(lunch.publishedAt)} 게시 · 사진을 누르면 크게 볼 수 있어요",
+                        color = Muted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+                lunch != null -> Text(text = lunch.menu.ifBlank { lunch.title }, color = MenuText, fontSize = 12.sp, lineHeight = 17.sp)
+                day.holiday -> StatusBox(background = HolidayBg) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = "운영 없음", color = HolidayText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        day.holidayName?.let {
+                            Text(text = " · $it", color = MeowColors.TextTertiary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
-                if (lunch.menu.isNotBlank()) {
-                    Text(text = lunch.menu, color = MenuText, fontSize = 12.sp, lineHeight = 17.sp)
+                isToday -> StatusBox(background = TodayBg) {
+                    Text(text = "🍚", fontSize = 20.sp)
+                    Text(text = "11:20쯤 올라와요", color = MeowColors.Brand, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(text = "올라오면 자동으로 보여드려요", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
                 }
-                Text(
-                    text = "${formatClock(lunch.publishedAt)} 게시 · 사진을 누르면 크게 볼 수 있어요",
-                    color = Muted,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
-            lunch != null -> Text(text = lunch.menu.ifBlank { lunch.title }, color = MenuText, fontSize = 12.sp, lineHeight = 17.sp)
-            day.holiday -> StatusBox(background = HolidayBg) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "운영 없음", color = HolidayText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    day.holidayName?.let {
-                        Text(text = " · $it", color = MeowColors.TextTertiary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                    }
+                day.date > today -> StatusBox(background = SoftBg) {
+                    Text(text = "아직 안 올라왔어요", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
-            }
-            isToday -> StatusBox(background = TodayBg) {
-                Text(text = "🍚", fontSize = 20.sp)
-                Text(text = "11:20쯤 올라와요", color = MeowColors.Brand, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                Text(text = "올라오면 자동으로 보여드려요", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-            }
-            day.date > today -> StatusBox(background = SoftBg) {
-                Text(text = "아직 안 올라왔어요", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            }
-            else -> StatusBox(background = SoftBg) {
-                Text(text = "게시물이 없어요", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                else -> StatusBox(background = SoftBg) {
+                    Text(text = "게시물이 없어요", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                }
             }
         }
     }
@@ -525,7 +542,10 @@ private fun StatusBox(background: Color, content: @Composable ColumnScope.() -> 
 @Composable
 private fun StatusMessage(text: String, color: Color, height: androidx.compose.ui.unit.Dp = 120.dp) {
     Box(Modifier.fillMaxWidth().height(height), contentAlignment = Alignment.Center) {
-        Text(text = text, color = color, fontSize = 13.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
+        // #155 '메뉴를 불러오지 못했어요 · …' 같은 문구를 복사할 수 있게 한다.
+        SelectionContainer {
+            Text(text = text, color = color, fontSize = 13.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
+        }
     }
 }
 
@@ -575,13 +595,16 @@ internal fun KakaoImage(
             is ImageResult.Loading -> r.preview?.let {
                 Image(bitmap = it, contentDescription = contentDescription, contentScale = contentScale, modifier = Modifier.fillMaxSize())
             }
-            ImageResult.Failed -> Text(
-                text = "이미지를 불러오지 못했어요",
-                color = Muted,
-                fontSize = 11.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(4.dp),
-            )
+            // 선택 영역 안에서도 이 문구가 사진 클릭을 가로채지 않도록 선택에서 뺀다.
+            ImageResult.Failed -> DisableSelection {
+                Text(
+                    text = "이미지를 불러오지 못했어요",
+                    color = Muted,
+                    fontSize = 11.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(4.dp),
+                )
+            }
         }
     }
 }

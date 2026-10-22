@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Merge
@@ -253,17 +254,20 @@ fun MergeFooter(prUrl: String, prNumber: Int, prTitle: String, modifier: Modifie
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(text = title, color = titleColor, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
-            Text(
-                text = subtitle,
-                color = subtitleColor,
-                fontSize = 12.sp,
-                lineHeight = 17.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-            )
+        // #155 머지 상태 · 오류 문구는 복사할 수 있게 따로 선택 영역으로 둔다 (버튼 · 확인창은 바깥이라 영향 없음).
+        SelectionContainer(modifier = Modifier.weight(1f)) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(text = title, color = titleColor, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    text = subtitle,
+                    color = subtitleColor,
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         if (action != MergeAction.Merged) {
             SplitMergeButton(

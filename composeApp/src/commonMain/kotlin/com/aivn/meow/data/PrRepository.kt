@@ -19,8 +19,6 @@ data class DashboardSnapshot(
     val viewerInitials: String,
     val avatarUrl: String,
     val pullRequests: List<PullRequest>,
-    val totalOpen: Int,
-    val overdue48h: Int,
     val fetchedAtIso: String,
     /** 보조 섹션 결과. 섹션 실패는 여기 [SectionResult.errorMessage] 로만 드러난다. */
     val sections: List<SectionResult> = emptyList(),
@@ -35,14 +33,11 @@ class PrRepository(
         val sectionJobs = sections.map { section -> async { section.loadResult(client, org) } }
         val data = client.fetchReviewRequests(org)
         val prs = data.search.nodes.map { it.toDomain() }
-        val overdue = prs.count { isOverdue(nowIsoUtc, it.updatedAtIso) }
         DashboardSnapshot(
             viewerLogin = data.viewer.login,
             viewerInitials = initialsFrom(data.viewer.name, data.viewer.login),
             avatarUrl = data.viewer.avatarUrl,
             pullRequests = prs,
-            totalOpen = data.search.issueCount,
-            overdue48h = overdue,
             fetchedAtIso = nowIsoUtc,
             sections = sectionJobs.awaitAll(),
         )
@@ -140,31 +135,4 @@ internal fun initialsFrom(name: String?, login: String): String {
         source.isNotEmpty() -> source.take(1).uppercase()
         else -> "?"
     }
-}
-
-internal fun isOverdue(nowIso: String, updatedIso: String): Boolean {
-    val now = parseInstantSeconds(nowIso) ?: return false
-    val updated = parseInstantSeconds(updatedIso) ?: return false
-    return (now - updated) >= 48L * 60 * 60
-}
-
-private fun parseInstantSeconds(iso: String): Long? = runCatching {
-    // Minimal ISO-8601 UTC parser: 2026-09-15T07:41:00Z
-    val cleaned = iso.trimEnd('Z')
-    val (date, time) = cleaned.split('T')
-    val (y, mo, d) = date.split('-').map { it.toInt() }
-    val (hh, mm, ss) = time.split('.').first().split(':').map { it.toInt() }
-    epochSeconds(y, mo, d, hh, mm, ss)
-}.getOrNull()
-
-private fun epochSeconds(y: Int, mo: Int, d: Int, hh: Int, mm: Int, ss: Int): Long {
-    // Gregorian → epoch seconds, treats input as UTC.
-    val yy = if (mo <= 2) y - 1 else y
-    val mm2 = if (mo <= 2) mo + 12 else mo
-    val era = if (yy >= 0) yy / 400 else (yy - 399) / 400
-    val yoe = (yy - era * 400).toLong()
-    val doy = (153 * (mm2 - 3) + 2) / 5 + d - 1
-    val doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
-    val days = era.toLong() * 146097L + doe - 719468L
-    return days * 86400L + hh * 3600L + mm * 60L + ss
 }

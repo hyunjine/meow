@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
@@ -30,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.Alignment
@@ -51,7 +53,6 @@ import com.aivn.meow.data.DashboardSnapshot
 import com.aivn.meow.data.SectionResult
 import com.aivn.meow.config.RepoPrefs
 import com.aivn.meow.data.RepoUniverse
-import com.aivn.meow.data.isOverdue
 import com.aivn.meow.data.onlyCheckedRepos
 import com.aivn.meow.data.repoShortName
 import com.aivn.meow.model.PullRequest
@@ -271,41 +272,16 @@ private fun DashboardBody(
     }
     // 시작 시 · 관리 모달 · 상세 모달을 닫은 뒤 키보드 단축키가 다시 동작하도록 포커스를 가져온다
     val anyModalOpen = showRepoManager || openUrl != null
-    LaunchedEffect(anyModalOpen) { if (!anyModalOpen) focusRequester.requestFocus() }
-
-    // #127 통계도 체크한 레포의 리뷰 대기 PR 기준
-    val overdueCount = visiblePrs.count { isOverdue(snapshot.fetchedAtIso, it.updatedAtIso) }
-    val stats = listOf(
-        StatItem(
-            label = "리뷰 대기 PR",
-            value = visiblePrs.size.toString(),
-            suffix = "건",
-            hint = visiblePrs.minByOrNull { it.updatedAtIso }?.relativeTime?.let { "가장 오래된 건 · $it" } ?: "대기 중인 PR 없음",
-            icon = "📥",
-            accent = MeowColors.Brand,
-        ),
-        StatItem(
-            label = "48시간 초과",
-            value = overdueCount.toString(),
-            suffix = "건",
-            hint = if (overdueCount > 0) "우선 처리 권장" else "쾌적한 상태",
-            icon = "⏱️",
-            accent = MeowColors.Warning,
-        ),
-        StatItem(
-            label = "리뷰 요청 총계",
-            value = visiblePrs.size.toString(),
-            suffix = "건",
-            hint = "체크한 레포 ${checkedRepos.size}개",
-            icon = "📊",
-            accent = MeowColors.Success,
-        ),
-    )
+    // #155 글자를 고르면 SelectionContainer 가 포커스를 가져간다. 그 안의 키도 위로 올라와 단축키는 동작하지만,
+    // 포커스를 가진 선택 영역이 사라지면(새로고침으로 오류 문구가 없어지는 등) 포커스가 비므로 다시 가져온다.
+    var screenHasFocus by remember { mutableStateOf(false) }
+    LaunchedEffect(anyModalOpen, screenHasFocus) { if (!anyModalOpen && !screenHasFocus) focusRequester.requestFocus() }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .onFocusChanged { screenHasFocus = it.hasFocus }
                 .focusRequester(focusRequester)
                 .focusable()
                 .onPreviewKeyEvent { keyEvent ->
@@ -357,7 +333,6 @@ private fun DashboardBody(
                     syncing = state.refreshing,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                StatCards(stats = stats, modifier = Modifier.fillMaxWidth())
                 state.refreshError?.let { failure ->
                     RefreshErrorBanner(failure = failure, onRetry = onRefresh, modifier = Modifier.fillMaxWidth())
                 }
@@ -479,14 +454,16 @@ private fun SectionTabContent(
         items.isEmpty() -> EmptyStateCard(section.emptyTitle, section.emptyHint, Modifier.fillMaxWidth())
         else -> Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             result.errorMessage?.let { message ->
-                Text(
-                    text = "불러오지 못했어요 · $message",
-                    style = MeowType.Meta,
-                    color = MeowColors.Error,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                SelectionContainer {
+                    Text(
+                        text = "불러오지 못했어요 · $message",
+                        style = MeowType.Meta,
+                        color = MeowColors.Error,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             ItemList(items, selectedIndex, onOpen)
         }
@@ -550,24 +527,29 @@ private fun CenteredError(failure: LoadFailure, onRetry: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = guide.title,
-            color = MeowColors.TextPrimary,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            text = failure.message,
-            modifier = Modifier.padding(top = 12.dp),
-            style = MeowType.Body,
-            color = MeowColors.TextSecondary,
-        )
-        Text(
-            text = guide.hint,
-            modifier = Modifier.padding(top = 8.dp),
-            style = MeowType.Meta,
-            color = MeowColors.TextTertiary,
-        )
+        // #155 오류 원문 · 안내를 복사할 수 있게 한다.
+        SelectionContainer {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = guide.title,
+                    color = MeowColors.TextPrimary,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = failure.message,
+                    modifier = Modifier.padding(top = 12.dp),
+                    style = MeowType.Body,
+                    color = MeowColors.TextSecondary,
+                )
+                Text(
+                    text = guide.hint,
+                    modifier = Modifier.padding(top = 8.dp),
+                    style = MeowType.Meta,
+                    color = MeowColors.TextTertiary,
+                )
+            }
+        }
         RetryButton(onClick = onRetry, modifier = Modifier.padding(top = 20.dp))
     }
 }
@@ -588,19 +570,22 @@ private fun RefreshErrorBanner(failure: LoadFailure, onRetry: () -> Unit, modifi
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = "$title · 마지막으로 불러온 목록을 표시 중이에요",
-                style = MeowType.SectionHeading,
-                color = MeowColors.Error,
-            )
-            Text(
-                text = detail,
-                style = MeowType.Meta,
-                color = MeowColors.TextSecondary,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+        // #155 실패 원인 문구를 복사할 수 있게 한다.
+        SelectionContainer(modifier = Modifier.weight(1f)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "$title · 마지막으로 불러온 목록을 표시 중이에요",
+                    style = MeowType.SectionHeading,
+                    color = MeowColors.Error,
+                )
+                Text(
+                    text = detail,
+                    style = MeowType.Meta,
+                    color = MeowColors.TextSecondary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         RetryButton(onClick = onRetry)
     }

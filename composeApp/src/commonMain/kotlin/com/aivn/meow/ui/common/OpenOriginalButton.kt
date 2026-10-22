@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.Icon
@@ -34,9 +35,15 @@ private val LightHover = Color(0xFFF5F6FA)
 /**
  * 외부 원본(GitHub · 주간보고 문서 · 식단 게시물 등)을 여는 공통 '원본 보기' 테두리 버튼.
  * [dark] 는 라이트박스처럼 어두운 배경 위에서 쓰는 반투명 흰색 버전.
+ * #155 SelectionContainer 안에 놓여도 글자 선택이 클릭을 가로채지 않도록 선택에서 뺀다.
  */
 @Composable
 fun OpenOriginalButton(onClick: () -> Unit, modifier: Modifier = Modifier, dark: Boolean = false) {
+    DisableSelection { OpenOriginalButtonContent(onClick, modifier, dark) }
+}
+
+@Composable
+private fun OpenOriginalButtonContent(onClick: () -> Unit, modifier: Modifier, dark: Boolean) {
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     val background = when {
