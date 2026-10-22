@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -137,19 +138,26 @@ internal fun EmptyStateCard(
             .glassSurface(corner = 20.dp)
             .padding(horizontal = 24.dp, vertical = 36.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
-            text = title,
-            style = MeowType.SectionHeading,
-            color = titleColor,
-            textAlign = TextAlign.Center,
-        )
-        Text(
-            text = hint,
-            style = MeowType.Meta,
-            color = MeowColors.TextTertiary,
-            textAlign = TextAlign.Center,
-        )
+        // #155 오류 · 안내 문구를 드래그로 골라 복사할 수 있게 한다 (카드 안에 누르는 곳은 없다).
+        SelectionContainer {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = title,
+                    style = MeowType.SectionHeading,
+                    color = titleColor,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    text = hint,
+                    style = MeowType.Meta,
+                    color = MeowColors.TextTertiary,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
     }
 }

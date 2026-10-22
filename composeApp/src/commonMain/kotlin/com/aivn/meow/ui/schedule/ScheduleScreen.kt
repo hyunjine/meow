@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -211,16 +212,19 @@ private fun ArrowButton(icon: ImageVector, description: String, onClick: () -> U
 
 @Composable
 private fun WeekColumns(week: ScheduleWeek, today: LocalDate) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        (0 until 5).forEach { i ->
-            val date = week.monday.plus(i, DateTimeUnit.DAY)
-            DayColumn(
-                letter = DayLetters[i],
-                date = date,
-                isToday = date == today,
-                entries = week.days[date].orEmpty(),
-                modifier = Modifier.weight(1f),
-            )
+    // #155 요일 칸의 이름 · 메모를 드래그로 골라 ⌘C 로 복사할 수 있게 한다 (칸 안에 누르는 곳은 없다).
+    SelectionContainer(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            (0 until 5).forEach { i ->
+                val date = week.monday.plus(i, DateTimeUnit.DAY)
+                DayColumn(
+                    letter = DayLetters[i],
+                    date = date,
+                    isToday = date == today,
+                    entries = week.days[date].orEmpty(),
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }
@@ -346,13 +350,15 @@ private fun FailedCard(message: String, onRetry: () -> Unit, enabled: Boolean) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("일정을 불러오지 못했어요", color = MeowColors.Error, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-        Text(
-            text = message,
-            color = MeowColors.TextSecondary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            textAlign = TextAlign.Center,
-        )
+        SelectionContainer {
+            Text(
+                text = message,
+                color = MeowColors.TextSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+            )
+        }
         Spacer(Modifier.height(4.dp))
         val shape = RoundedCornerShape(12.dp)
         Text(
@@ -393,13 +399,15 @@ private fun ConnectCard(auth: MsAuthState, onConnect: () -> Unit) {
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
             )
-            is MsAuthState.Error -> Text(
-                text = auth.message,
-                color = MeowColors.Error,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center,
-            )
+            is MsAuthState.Error -> SelectionContainer {
+                Text(
+                    text = auth.message,
+                    color = MeowColors.Error,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                )
+            }
             else -> Unit
         }
         Spacer(Modifier.height(4.dp))

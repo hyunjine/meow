@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.selection.DisableSelection
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -83,7 +85,6 @@ private object FullWindowPosition : PopupPositionProvider {
  * Esc · 바깥(어두운 영역) 클릭으로 닫고, ← → · ↑ ↓ 로 이전 · 다음 항목으로 넘긴다.
  * 머지 확인창은 이 모달 안에서 띄운 Popup 이라 모달 위에 그려진다.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun DetailModal(
     item: DetailItem,
@@ -116,10 +117,11 @@ internal fun DetailModal(
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClose),
             contentAlignment = Alignment.Center,
         ) {
-            LaunchedEffect(Unit) { focusRequester.requestFocus() }
+            // #155 항목을 넘길 때마다 다시 포커스를 가져온다 — 포커스를 가진 선택 영역(머지 바 문구)이 사라져도 Esc · ← → 가 계속 동작하도록.
+            LaunchedEffect(item.url) { focusRequester.requestFocus() }
             val width = ModalWidth.coerceAtMost(maxWidth - 48.dp)
             val height = (maxHeight - ModalVerticalMargin).coerceAtLeast(ModalMinHeight).coerceAtMost(maxHeight)
-            Column(
+            Box(
                 modifier = Modifier
                     .width(width)
                     .height(height)
@@ -129,34 +131,52 @@ internal fun DetailModal(
                     // 카드 안 클릭이 어두운 영역으로 전달돼 닫히지 않도록 소비한다
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
                     .padding(horizontal = 28.dp, vertical = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                Header(item = item, onOpenOriginal = onOpenOriginal, onClose = onClose)
-                Text(
-                    text = item.title,
-                    color = MeowColors.TextPrimary,
-                    fontSize = 21.sp,
-                    lineHeight = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                val chips = listOfNotNull(item.kindLabel) + item.chips
-                if (chips.isNotEmpty()) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        chips.forEach { StatusChipView(it) }
-                    }
+                // #155 제목 · 메타 · 본문 · 댓글 · 리뷰를 드래그로 골라 ⌘C 로 복사할 수 있게 한다.
+                // 선택 컨테이너가 포커스를 가져가도 키 이벤트는 바깥 Box 의 onKeyEvent 로 올라가 Esc · ← → 가 그대로 동작한다.
+                // 버튼 · 탭 · 머지 바처럼 누르는 곳은 DisableSelection 으로 감싸 클릭이 선택에 먹히지 않게 한다.
+                SelectionContainer(modifier = Modifier.fillMaxSize()) {
+                    ModalContent(item = item, onOpenOriginal = onOpenOriginal, onClose = onClose)
                 }
-                item.detail?.let { detail ->
-                    Text(text = detail, style = MeowType.Meta, color = MeowColors.TextSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                }
-                DetailBody(target = item.discussionTarget, body = item.body, showDiscussion = item.showDiscussion)
-                if (item.mergeable) {
-                    MergeFooter(prUrl = item.url, prNumber = item.number, prTitle = item.title)
-                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ModalContent(item: DetailItem, onOpenOriginal: () -> Unit, onClose: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Header(item = item, onOpenOriginal = onOpenOriginal, onClose = onClose)
+        Text(
+            text = item.title,
+            color = MeowColors.TextPrimary,
+            fontSize = 21.sp,
+            lineHeight = 28.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
+        val chips = listOfNotNull(item.kindLabel) + item.chips
+        if (chips.isNotEmpty()) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                chips.forEach { StatusChipView(it) }
+            }
+        }
+        item.detail?.let { detail ->
+            Text(text = detail, style = MeowType.Meta, color = MeowColors.TextSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        DetailBody(target = item.discussionTarget, body = item.body, showDiscussion = item.showDiscussion)
+        if (item.mergeable) {
+            // 머지 바 · 확인창(Popup)은 선택 대상에서 뺀다. 상태 문구는 MergeFooter 안에서 따로 선택할 수 있다.
+            DisableSelection {
+                MergeFooter(prUrl = item.url, prNumber = item.number, prTitle = item.title)
             }
         }
     }

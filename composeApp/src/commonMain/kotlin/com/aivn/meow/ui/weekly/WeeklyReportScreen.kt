@@ -177,12 +177,14 @@ private fun ConnectCard(auth: MsAuthState, onConnect: () -> Unit) {
                 style = MeowType.Meta,
                 color = MeowColors.TextTertiary,
             )
-            is MsAuthState.Error -> Text(
-                text = auth.message,
-                style = MeowType.Meta,
-                color = MeowColors.Error,
-                textAlign = TextAlign.Center,
-            )
+            is MsAuthState.Error -> SelectionContainer {
+                Text(
+                    text = auth.message,
+                    style = MeowType.Meta,
+                    color = MeowColors.Error,
+                    textAlign = TextAlign.Center,
+                )
+            }
             else -> Text(
                 text = "회사 계정으로 로그인하면 메일 · OneDrive 의 주간회의 자료를 읽어요",
                 style = MeowType.Meta,
@@ -322,12 +324,14 @@ private fun ReportBody(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text("동기화하지 못했어요", style = MeowType.SectionHeading, color = MeowColors.Error)
-                    Text(
-                        text = content.message,
-                        style = MeowType.Meta,
-                        color = MeowColors.TextSecondary,
-                        textAlign = TextAlign.Center,
-                    )
+                    SelectionContainer {
+                        Text(
+                            text = content.message,
+                            style = MeowType.Meta,
+                            color = MeowColors.TextSecondary,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
                     Spacer(Modifier.height(4.dp))
                     OutlineButton(text = "다시 시도", onClick = viewModel::sync, enabled = !state.syncing)
                 }
@@ -435,14 +439,15 @@ private fun DocumentCard(
     val row = found.row
     WeeklyCard(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = row.header.title ?: row.doc.name.removeSuffix(".docx"),
-                modifier = Modifier.weight(1f),
-                style = MeowType.Title,
-                color = MeowColors.TextPrimary,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-            )
+            SelectionContainer(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = row.header.title ?: row.doc.name.removeSuffix(".docx"),
+                    style = MeowType.Title,
+                    color = MeowColors.TextPrimary,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
             Text(
                 text = "Word 문서 미리보기 · 편집 가능",
                 style = MeowType.Meta,
@@ -451,11 +456,13 @@ private fun DocumentCard(
         }
         if (!row.found) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "표에서 '$myName' 행을 찾지 못했어요. 표에 적힌 이름과 같은지 확인해 주세요",
-                    style = MeowType.Meta,
-                    color = MeowColors.Error,
-                )
+                SelectionContainer {
+                    Text(
+                        text = "표에서 '$myName' 행을 찾지 못했어요. 표에 적힌 이름과 같은지 확인해 주세요",
+                        style = MeowType.Meta,
+                        color = MeowColors.Error,
+                    )
+                }
                 LinkText("이름 바꾸기", onClick = onChangeName)
             }
         }
@@ -479,22 +486,26 @@ private fun DocumentCard(
                 enabled = row.found,
             )
         }
+        // #155 초안 오류 · 안내는 복사할 수 있게 한다.
         listOfNotNull(found.draftError, found.planDraftError).forEach {
-            Text(text = it, style = MeowType.Meta, color = MeowColors.Warning)
+            SelectionContainer { Text(text = it, style = MeowType.Meta, color = MeowColors.Warning) }
         }
         listOfNotNull(found.draftNote, found.planDraftNote).forEach {
-            Text(text = it, style = MeowType.Meta, color = MeowColors.TextSecondary)
+            SelectionContainer { Text(text = it, style = MeowType.Meta, color = MeowColors.TextSecondary) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             row.doc.webUrl?.let { url -> OpenOriginalButton(onClick = { onOpenUrl(url) }) }
             Spacer(Modifier.weight(1f))
             found.saveMessage?.let { message ->
-                Text(
-                    text = message.text,
-                    style = MeowType.Meta,
-                    color = if (message.ok) MeowColors.Success else MeowColors.Error,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                // '반영하지 못했어요: …' 같은 결과 문구를 복사할 수 있게 한다.
+                SelectionContainer {
+                    Text(
+                        text = message.text,
+                        style = MeowType.Meta,
+                        color = if (message.ok) MeowColors.Success else MeowColors.Error,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
             }
             OutlineButton(text = "초안 다시 생성", onClick = onRegenerate, enabled = canWrite && !found.drafting && !found.saving, loading = found.drafting)
             BrandButton(text = "문서에 반영", onClick = onPublish, enabled = canWrite && row.found && !found.saving && !found.drafting, loading = found.saving)
@@ -515,26 +526,31 @@ private fun PastWeekCard(
     val monday = isoWeekMonday(Clock.System.todayIn(TimeZone.of("Asia/Seoul")).year, doc.week)
     val friday = monday.plus(4, DateTimeUnit.DAY)
     WeeklyCard(modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "Week ${doc.week} · ${monday.month.number}/${monday.day} – ${friday.month.number}/${friday.day}",
-                modifier = Modifier.weight(1f),
-                style = MeowType.Title,
-                color = MeowColors.TextPrimary,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = "지난 주차 · 읽기 전용",
-                style = MeowType.Meta,
-                color = MeowColors.TextTertiary,
-            )
+        // #155 주차 · 문서 제목을 복사할 수 있게 한다.
+        SelectionContainer {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Week ${doc.week} · ${monday.month.number}/${monday.day} – ${friday.month.number}/${friday.day}",
+                        modifier = Modifier.weight(1f),
+                        style = MeowType.Title,
+                        color = MeowColors.TextPrimary,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = "지난 주차 · 읽기 전용",
+                        style = MeowType.Meta,
+                        color = MeowColors.TextTertiary,
+                    )
+                }
+                Text(
+                    text = row?.header?.title ?: doc.name.removeSuffix(".docx"),
+                    style = MeowType.Meta,
+                    color = MeowColors.TextTertiary,
+                )
+            }
         }
-        Text(
-            text = row?.header?.title ?: doc.name.removeSuffix(".docx"),
-            style = MeowType.Meta,
-            color = MeowColors.TextTertiary,
-        )
         when {
             row != null && (row.results.isNotEmpty() || row.plans.isNotEmpty()) -> {
                 val tableShape = RoundedCornerShape(12.dp)
@@ -550,7 +566,7 @@ private fun PastWeekCard(
                 color = MeowColors.TextSecondary,
             )
             selection.error != null -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(text = selection.error, style = MeowType.Meta, color = MeowColors.Error)
+                SelectionContainer { Text(text = selection.error, style = MeowType.Meta, color = MeowColors.Error) }
                 OutlineButton(text = "다시 시도", onClick = onRetry)
             }
             else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
