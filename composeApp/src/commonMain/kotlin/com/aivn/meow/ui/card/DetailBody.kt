@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -14,12 +15,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -59,47 +63,56 @@ private val ChangesText = Color(0xFFD9534F)
 private val ChangesBg = Color(0xFFFDF1EF)
 
 /**
- * #131 펼친 카드의 헤더 아래 내용 — 세그먼트 탭(본문 · 댓글 · 리뷰) + 선택한 탭 내용 + [footer].
- * 카드 접기는 헤더 쪽에서만 처리하므로, 이 영역 안의 클릭(탭 · 링크)은 카드를 접지 않는다.
- *
- * @param footer 탭 내용 아래 카드 맨 밑에 붙는 영역 (#130 머지 푸터 자리). null 이면 그리지 않는다.
+ * #144 상세 모달의 본문 영역 — 세그먼트 탭(본문 · 댓글 · 리뷰) + 선택한 탭 내용.
+ * 탭은 고정하고 내용만 남은 높이(weight 1)에서 스크롤한다.
+ * [showDiscussion] 이 false 거나 댓글 캐시가 없으면 탭 없이 본문만 보여준다.
  */
 @Composable
-internal fun ExpandedCardBody(
+internal fun ColumnScope.DetailBody(
     target: DiscussionTarget,
     body: String?,
-    modifier: Modifier = Modifier,
-    footer: (@Composable () -> Unit)? = null,
+    showDiscussion: Boolean,
 ) {
     val store = LocalCardDiscussions.current
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        if (store == null) {
-            BodyTab(body)
-        } else {
-            LaunchedEffect(target.url, target.updatedAtIso) { store.ensureLoaded(target) }
-            val states by store.states.collectAsState()
-            val selectedTabs by store.selectedTabs.collectAsState()
-            val state = states[target.url]
-            val data = state?.data
-            val tabs = if (target.isPullRequest) CardTab.entries else listOf(CardTab.Body, CardTab.Comments)
-            val selected = selectedTabs[target.url]?.takeIf { it in tabs } ?: CardTab.Body
+    if (store == null || !showDiscussion) {
+        ScrollArea(target.url) { BodyTab(body) }
+        return
+    }
+    LaunchedEffect(target.url, target.updatedAtIso) { store.ensureLoaded(target) }
+    val states by store.states.collectAsState()
+    val selectedTabs by store.selectedTabs.collectAsState()
+    val state = states[target.url]
+    val data = state?.data
+    val tabs = if (target.isPullRequest) CardTab.entries else listOf(CardTab.Body, CardTab.Comments)
+    val selected = selectedTabs[target.url]?.takeIf { it in tabs } ?: CardTab.Body
 
-            SegmentedTabs(
-                labels = tabs.map { tab -> tab.label(data) },
-                selectedIndex = tabs.indexOf(selected),
-                onSelect = { index -> store.selectTab(target.url, tabs[index]) },
-            )
-            when (selected) {
-                CardTab.Body -> BodyTab(body)
-                CardTab.Comments -> DiscussionTabContent(state, onRetry = { store.retry(target) }) { loaded ->
-                    CommentList(loaded.comments)
-                }
-                CardTab.Reviews -> DiscussionTabContent(state, onRetry = { store.retry(target) }) { loaded ->
-                    ReviewList(loaded.reviews)
-                }
+    SegmentedTabs(
+        labels = tabs.map { tab -> tab.label(data) },
+        selectedIndex = tabs.indexOf(selected),
+        onSelect = { index -> store.selectTab(target.url, tabs[index]) },
+    )
+    ScrollArea("${target.url}#${selected.name}") {
+        when (selected) {
+            CardTab.Body -> BodyTab(body)
+            CardTab.Comments -> DiscussionTabContent(state, onRetry = { store.retry(target) }) { loaded ->
+                CommentList(loaded.comments)
+            }
+            CardTab.Reviews -> DiscussionTabContent(state, onRetry = { store.retry(target) }) { loaded ->
+                ReviewList(loaded.reviews)
             }
         }
-        footer?.invoke()
+    }
+}
+
+/** 남은 높이를 채우고 세로로 스크롤하는 내용 칸. [key] 가 바뀌면(항목 · 탭 전환) 맨 위부터 다시 보여준다. */
+@Composable
+private fun ColumnScope.ScrollArea(key: String, content: @Composable ColumnScope.() -> Unit) {
+    key(key) {
+        Column(
+            modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            content = content,
+        )
     }
 }
 
@@ -110,7 +123,7 @@ private fun CardTab.label(data: CardDiscussion?): String = when (this) {
     CardTab.Reviews -> data?.let { "리뷰 ${it.reviews.size}" } ?: "리뷰"
 }
 
-/** 회색 트랙 위 흰 선택 세그먼트. 카드 폭을 채운다. */
+/** 회색 트랙 위 흰 선택 세그먼트. 모달 폭을 채운다. */
 @Composable
 private fun SegmentedTabs(labels: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit) {
     val segmentShape = RoundedCornerShape(8.dp)

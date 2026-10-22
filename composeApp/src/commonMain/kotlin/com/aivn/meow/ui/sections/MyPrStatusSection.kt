@@ -41,7 +41,7 @@ private fun MyPrStatusNode.priority(): Int = when {
 private fun MyPrStatusNode.badges(): List<Label> = buildList {
     when (reviewDecision) {
         "CHANGES_REQUESTED" -> add(Label("변경 요청", MeowColors.Error))
-        "APPROVED" -> add(Label("승인", MeowColors.Success))
+        "APPROVED" -> add(Label(if (approvalCount > 0) "승인 $approvalCount" else "승인", MeowColors.Success))
         "REVIEW_REQUIRED" -> add(Label("리뷰 대기", MeowColors.Grey))
     }
     // PrList 의 CiChip 과 같은 문구 · 색. 체크가 아예 없으면 표시하지 않는다.
@@ -49,9 +49,9 @@ private fun MyPrStatusNode.badges(): List<Label> = buildList {
         null -> Unit
         "SUCCESS" -> add(Label("CI · 통과", MeowColors.Success))
         "FAILURE", "ERROR" -> add(Label("CI · 실패", MeowColors.Error))
-        else -> add(Label("CI · 진행중", MeowColors.Warning))
+        else -> add(Label("CI · 진행 중", MeowColors.Warning))
     }
-    if (isDraft) add(Label("Draft", MeowColors.Grey))
+    if (isDraft) add(Label("초안", MeowColors.Grey))
 }
 
 private fun MyPrStatusNode.detail(): String =
