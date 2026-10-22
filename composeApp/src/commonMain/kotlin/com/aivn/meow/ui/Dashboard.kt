@@ -51,7 +51,6 @@ import com.aivn.meow.data.DashboardSnapshot
 import com.aivn.meow.data.SectionResult
 import com.aivn.meow.config.RepoPrefs
 import com.aivn.meow.data.RepoUniverse
-import com.aivn.meow.data.isOverdue
 import com.aivn.meow.data.onlyCheckedRepos
 import com.aivn.meow.data.repoShortName
 import com.aivn.meow.model.PullRequest
@@ -273,35 +272,6 @@ private fun DashboardBody(
     val anyModalOpen = showRepoManager || openUrl != null
     LaunchedEffect(anyModalOpen) { if (!anyModalOpen) focusRequester.requestFocus() }
 
-    // #127 통계도 체크한 레포의 리뷰 대기 PR 기준
-    val overdueCount = visiblePrs.count { isOverdue(snapshot.fetchedAtIso, it.updatedAtIso) }
-    val stats = listOf(
-        StatItem(
-            label = "리뷰 대기 PR",
-            value = visiblePrs.size.toString(),
-            suffix = "건",
-            hint = visiblePrs.minByOrNull { it.updatedAtIso }?.relativeTime?.let { "가장 오래된 건 · $it" } ?: "대기 중인 PR 없음",
-            icon = "📥",
-            accent = MeowColors.Brand,
-        ),
-        StatItem(
-            label = "48시간 초과",
-            value = overdueCount.toString(),
-            suffix = "건",
-            hint = if (overdueCount > 0) "우선 처리 권장" else "쾌적한 상태",
-            icon = "⏱️",
-            accent = MeowColors.Warning,
-        ),
-        StatItem(
-            label = "리뷰 요청 총계",
-            value = visiblePrs.size.toString(),
-            suffix = "건",
-            hint = "체크한 레포 ${checkedRepos.size}개",
-            icon = "📊",
-            accent = MeowColors.Success,
-        ),
-    )
-
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -357,7 +327,6 @@ private fun DashboardBody(
                     syncing = state.refreshing,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                StatCards(stats = stats, modifier = Modifier.fillMaxWidth())
                 state.refreshError?.let { failure ->
                     RefreshErrorBanner(failure = failure, onRetry = onRefresh, modifier = Modifier.fillMaxWidth())
                 }
