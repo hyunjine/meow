@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -86,11 +87,14 @@ internal fun ColumnScope.DetailBody(
     val tabs = if (target.isPullRequest) CardTab.entries else listOf(CardTab.Body, CardTab.Comments)
     val selected = selectedTabs[target.url]?.takeIf { it in tabs } ?: CardTab.Body
 
-    SegmentedTabs(
-        labels = tabs.map { tab -> tab.label(data) },
-        selectedIndex = tabs.indexOf(selected),
-        onSelect = { index -> store.selectTab(target.url, tabs[index]) },
-    )
+    // #155 상세 모달은 SelectionContainer 안이라, 탭 글자가 선택에 먹혀 클릭이 안 되지 않도록 선택에서 뺀다.
+    DisableSelection {
+        SegmentedTabs(
+            labels = tabs.map { tab -> tab.label(data) },
+            selectedIndex = tabs.indexOf(selected),
+            onSelect = { index -> store.selectTab(target.url, tabs[index]) },
+        )
+    }
     ScrollArea("${target.url}#${selected.name}") {
         when (selected) {
             CardTab.Body -> BodyTab(body)
@@ -196,16 +200,18 @@ private fun DiscussionTabContent(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = "다시 시도",
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = onRetry)
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                style = MeowType.Meta,
-                color = MeowColors.Brand,
-                fontWeight = FontWeight.SemiBold,
-            )
+            DisableSelection {
+                Text(
+                    text = "다시 시도",
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onRetry)
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                    style = MeowType.Meta,
+                    color = MeowColors.Brand,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
         else -> Box(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MeowColors.Brand, strokeWidth = 2.dp)

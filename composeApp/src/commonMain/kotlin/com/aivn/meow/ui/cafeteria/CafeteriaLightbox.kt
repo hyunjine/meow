@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -169,16 +170,19 @@ internal fun CafeteriaLightbox(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(text = title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    if (subtitle.isNotBlank()) {
-                        Text(
-                            text = subtitle,
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontSize = 13.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                // #155 제목 · 날짜를 복사할 수 있게 한다. 키 이벤트는 바깥 Box 로 올라가 esc · ← → 가 그대로 동작한다.
+                SelectionContainer(modifier = Modifier.weight(1f)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(text = title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        if (subtitle.isNotBlank()) {
+                            Text(
+                                text = subtitle,
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
                 OpenOriginalButton(onClick = { onOpenUrl(photo.xlarge) }, dark = true)
