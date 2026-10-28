@@ -95,7 +95,7 @@ fun ScheduleScreen(
         ) {
             val lastSync = state.lastSyncAt
             PageHeader(
-                title = "일정",
+                title = "출근",
                 subtitle = "$CALENDAR_NAME 공용 캘린더 · 사무실/재택 제외",
                 syncLabel = if (state.lastSyncFailed) "마지막 동기화 · 실패" else "마지막 동기화",
                 syncValue = lastSync?.let { formatSyncTime(it, Clock.System.now()) } ?: "아직 동기화 안 함",
