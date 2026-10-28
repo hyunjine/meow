@@ -20,6 +20,10 @@ targets:
     platform: iOS
     sources:
       - path: iosApp
+    # #165 Microsoft 로그인(ASWebAuthenticationSession) · 키체인. 정적 Kotlin 프레임워크가 쓰는 시스템 프레임워크를 앱에서 링크한다.
+    dependencies:
+      - sdk: AuthenticationServices.framework
+      - sdk: Security.framework
     settings:
       base:
         PRODUCT_NAME: $(APP_NAME)

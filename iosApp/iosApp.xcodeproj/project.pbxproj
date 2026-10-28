@@ -9,10 +9,14 @@
 /* Begin PBXBuildFile section */
 		22EA1CB33A17DCC6FC82406D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F543015C899423D4B01CEB2E /* Assets.xcassets */; };
 		307C2654CD5972A25FB7FD87 /* iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 668CECA83ACC03A83C85A623 /* iOSApp.swift */; };
+		4A23539E03B1795BF31CBF28 /* AuthenticationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 586A12FFC8277FCB5AAE67EA /* AuthenticationServices.framework */; };
 		56B0305B5D3847FC6B326502 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE8509E5A49E4A5CAAEB3ADB /* ContentView.swift */; };
+		CBE772C185B3AE8489CCE92F /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 428EEA85690BE39004316694 /* Security.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		428EEA85690BE39004316694 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		586A12FFC8277FCB5AAE67EA /* AuthenticationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices.framework; path = System/Library/Frameworks/AuthenticationServices.framework; sourceTree = SDKROOT; };
 		668CECA83ACC03A83C85A623 /* iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSApp.swift; sourceTree = "<group>"; };
 		719926556306ACCE69D2BB13 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		86038AE1032E284E79B32AD6 /* iosApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -20,6 +24,18 @@
 		CE8509E5A49E4A5CAAEB3ADB /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		F543015C899423D4B01CEB2E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		EF8A6E9BFD470986D9D5C9B5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4A23539E03B1795BF31CBF28 /* AuthenticationServices.framework in Frameworks */,
+				CBE772C185B3AE8489CCE92F /* Security.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		1DB4B685CAEE8BEFEBBAEF94 /* iosApp */ = {
@@ -41,11 +57,21 @@
 			path = Configuration;
 			sourceTree = "<group>";
 		};
+		3666012298E772D226418813 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				586A12FFC8277FCB5AAE67EA /* AuthenticationServices.framework */,
+				428EEA85690BE39004316694 /* Security.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		38B69C3F79CD97858CF7B609 = {
 			isa = PBXGroup;
 			children = (
 				30EEB9A6711302BCF09D714D /* Configuration */,
 				1DB4B685CAEE8BEFEBBAEF94 /* iosApp */,
+				3666012298E772D226418813 /* Frameworks */,
 				94C98B8B3A2BFC1966447269 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -68,6 +94,7 @@
 				4B44A75E2FD10EFE3C97FCF5 /* Compile Kotlin Framework */,
 				297B59D9CE634556D6007C40 /* Sources */,
 				1623B02D10928C8101C1F806 /* Resources */,
+				EF8A6E9BFD470986D9D5C9B5 /* Frameworks */,
 			);
 			buildRules = (
 			);
