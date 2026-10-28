@@ -36,3 +36,9 @@ local.properties
 
 # Supabase CLI 로컬 상태 (supabase link)
 supabase/.temp/
+
+# iOS (#165) — Xcode 사용자 상태 · 빌드 산출물
+iosApp/build/
+iosApp/DerivedData/
+xcuserdata/
+*.xcuserstate

@@ -7,6 +7,9 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -57,6 +60,8 @@ import com.aivn.meow.ui.PillChip
 import com.aivn.meow.ui.StatusChipView
 import com.aivn.meow.ui.card.DetailBody
 import com.aivn.meow.ui.common.MeowType
+import com.aivn.meow.ui.common.CompactGutter
+import com.aivn.meow.ui.common.LocalCompactLayout
 import com.aivn.meow.ui.common.OpenOriginalButton
 import com.aivn.meow.ui.common.consumeClicks
 import com.aivn.meow.ui.pr.MergeFooter
@@ -120,10 +125,19 @@ internal fun DetailModal(
         ) {
             // #155 항목을 넘길 때마다 다시 포커스를 가져온다 — 포커스를 가진 선택 영역(머지 바 문구)이 사라져도 Esc · ← → 가 계속 동작하도록.
             LaunchedEffect(item.url) { focusRequester.requestFocus() }
-            val width = ModalWidth.coerceAtMost(maxWidth - 48.dp)
-            val height = (maxHeight - ModalVerticalMargin).coerceAtLeast(ModalMinHeight).coerceAtMost(maxHeight)
-            Box(
-                modifier = Modifier
+            // #165 폰에서는 화면 전체를 덮는 시트로 띄우고, 노치 · 홈 인디케이터(safe area) 안쪽에 내용을 둔다.
+            val compact = LocalCompactLayout.current
+            val sheetModifier = if (compact) {
+                Modifier
+                    .fillMaxSize()
+                    .background(MeowColors.Surface)
+                    .consumeClicks()
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(horizontal = CompactGutter, vertical = 12.dp)
+            } else {
+                val width = ModalWidth.coerceAtMost(maxWidth - 48.dp)
+                val height = (maxHeight - ModalVerticalMargin).coerceAtLeast(ModalMinHeight).coerceAtMost(maxHeight)
+                Modifier
                     .width(width)
                     .height(height)
                     .shadow(elevation = 40.dp, shape = ModalShape, ambientColor = ModalShadow, spotColor = ModalShadow)
@@ -132,8 +146,9 @@ internal fun DetailModal(
                     // 카드 안 클릭이 어두운 영역으로 전달돼 닫히지 않도록 소비한다.
                     // #161 clickable 로 막으면 누를 때 카드가 포커스를 가져가 선택 영역의 ⌘C 복사가 안 되므로 누름만 소비한다.
                     .consumeClicks()
-                    .padding(horizontal = 28.dp, vertical = 24.dp),
-            ) {
+                    .padding(horizontal = 28.dp, vertical = 24.dp)
+            }
+            Box(modifier = sheetModifier) {
                 // #155 제목 · 메타 · 본문 · 댓글 · 리뷰를 드래그로 골라 ⌘C 로 복사할 수 있게 한다.
                 // 글자를 누르면 선택 컨테이너가 포커스를 가져가 ⌘C 를 받고, 다른 키는 바깥 Box 의 onKeyEvent 로 올라가 Esc · ← → 가 그대로 동작한다.
                 // 버튼 · 탭 · 머지 바처럼 누르는 곳은 DisableSelection 으로 감싸 클릭이 선택에 먹히지 않게 한다.
