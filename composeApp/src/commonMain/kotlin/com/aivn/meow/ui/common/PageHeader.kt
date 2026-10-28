@@ -129,7 +129,6 @@ private fun CompactPageHeader(
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
             )
-            LocalOpenSettings.current?.let { SettingsButton(onClick = it) }
             SyncButton(onClick = onSync, syncing = syncing, enabled = syncEnabled && !syncing)
         }
         subtitle?.let {
@@ -149,22 +148,6 @@ private fun CompactPageHeader(
                 fontWeight = FontWeight.Medium,
             )
         }
-    }
-}
-
-/** #165 폰 제목 줄의 ⚙︎ — 설정 화면(GitHub 토큰 · Microsoft · Supabase)을 연다. */
-@Composable
-fun SettingsButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .size(40.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(MeowColors.Surface)
-            .border(1.dp, MeowColors.GlassBorder, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(Icons.Outlined.Settings, contentDescription = "설정", tint = MeowColors.TextSecondary, modifier = Modifier.size(20.dp))
     }
 }
 

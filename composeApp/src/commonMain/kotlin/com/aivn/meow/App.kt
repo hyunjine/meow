@@ -56,7 +56,6 @@ import com.aivn.meow.ui.cafeteria.CafeteriaViewModel
 import com.aivn.meow.ui.common.ConnectLaterCard
 import com.aivn.meow.ui.common.LocalCompactLayout
 import com.aivn.meow.ui.common.LocalOpenSettings
-import com.aivn.meow.ui.common.SettingsButton
 import com.aivn.meow.ui.common.pageContent
 import com.aivn.meow.ui.nav.AppDrawer
 import com.aivn.meow.ui.nav.BottomTabBar
@@ -150,6 +149,30 @@ fun App(
     // #165 아이폰 설정 화면(전체 화면 위에 덮는다).
     var showSettings by remember { mutableStateOf(initialShowSettings) }
     val openSettings: (() -> Unit)? = accountSettings?.let { { showSettings = true } }
+    // #165 아이폰 설정 화면. 하단 탭 바는 그대로 두고 그 위 화면 영역에 그린다.
+    @Composable
+    fun SettingsHost() {
+        val settings = accountSettings ?: return
+        val msAuth by weeklyViewModel.auth.state.collectAsState()
+        SettingsScreen(
+            settings = settings,
+            githubLogin = viewerLogin,
+            validateGithubToken = { token ->
+                val client = githubClientFactory(token)
+                try {
+                    client.fetchViewerLogin()
+                } finally {
+                    client.close()
+                }
+            },
+            msAuth = msAuth,
+            onMsConnect = weeklyViewModel::signIn,
+            onMsSignOut = weeklyViewModel::signOut,
+            onOpenUrl = onOpenUrl,
+            onClose = { showSettings = false },
+            modifier = Modifier.background(MeowColors.Background),
+        )
+    }
     // 화면별 rememberSaveable 상태(탭 · 정렬 · 스크롤 등)를 화면 전환 후에도 유지
     val screenStateHolder = rememberSaveableStateHolder()
 
@@ -214,31 +237,18 @@ fun App(
                                 .fillMaxWidth()
                                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
                         ) {
-                            screenContent()
+                            if (showSettings && accountSettings != null) {
+                                SettingsHost()
+                            } else {
+                                screenContent()
+                            }
                         }
-                        BottomTabBar(selected = screen, onSelect = onSelectScreen)
-                    }
-                    if (showSettings && accountSettings != null) {
-                        val msAuth by weeklyViewModel.auth.state.collectAsState()
-                        SettingsScreen(
-                            settings = accountSettings,
-                            githubLogin = viewerLogin,
-                            validateGithubToken = { token ->
-                                val client = githubClientFactory(token)
-                                try {
-                                    client.fetchViewerLogin()
-                                } finally {
-                                    client.close()
-                                }
-                            },
-                            msAuth = msAuth,
-                            onMsConnect = weeklyViewModel::signIn,
-                            onMsSignOut = weeklyViewModel::signOut,
-                            onOpenUrl = onOpenUrl,
-                            onClose = { showSettings = false },
-                            modifier = Modifier
-                                .background(MeowColors.Background)
-                                .windowInsetsPadding(WindowInsets.safeDrawing),
+                        // #165 설정은 각 화면 제목 줄이 아니라 하단 탭의 '설정' 칸에서 연다.
+                        BottomTabBar(
+                            selected = screen,
+                            onSelect = { showSettings = false; onSelectScreen(it) },
+                            settingsSelected = showSettings,
+                            onOpenSettings = openSettings,
                         )
                     }
                 }
@@ -273,7 +283,6 @@ private fun GithubConnectLater() {
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                 )
-                LocalOpenSettings.current?.let { SettingsButton(onClick = it) }
             }
             ConnectLaterCard(
                 emoji = "🐙",
