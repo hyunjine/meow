@@ -65,7 +65,7 @@ fun App(
     onOpenUrl: (String) -> Unit,
     msEngine: HttpClientEngineFactory<*>,
     onNotices: (List<MeowNotice>) -> Unit = {},
-    // 일정 화면의 "Outlook 일정 ↗". 플랫폼 구현이 없으면 웹 캘린더를 연다.
+    // 출근 화면의 "Outlook 일정 ↗". 플랫폼 구현이 없으면 웹 캘린더를 연다.
     onOpenOutlookCalendar: suspend () -> OutlookOpenResult = {
         onOpenUrl(OUTLOOK_WEB_CALENDAR_URL)
         OutlookOpenResult.Browser
@@ -91,7 +91,7 @@ fun App(
             scope = scope,
         )
     }
-    // 일정 화면도 주간 보고와 같은 Microsoft 계정(MsAuth)을 쓴다.
+    // 출근 화면도 주간 보고와 같은 Microsoft 계정(MsAuth)을 쓴다.
     val scheduleViewModel = remember(weeklyViewModel) {
         ScheduleViewModel(
             auth = weeklyViewModel.auth,
