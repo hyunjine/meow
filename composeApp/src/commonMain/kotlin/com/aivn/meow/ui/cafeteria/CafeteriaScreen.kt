@@ -74,6 +74,7 @@ import com.aivn.meow.ui.common.LiquidGlassTabs
 import com.aivn.meow.ui.common.LiquidGlassTabsHeight
 import com.aivn.meow.ui.common.OpenOriginalButton
 import com.aivn.meow.ui.common.PageHeader
+import com.aivn.meow.ui.common.LocalCompactLayout
 import com.aivn.meow.ui.common.pageContent
 import com.aivn.meow.ui.weekly.formatSyncTime
 import com.aivn.meow.weekly.isoWeekNumber
@@ -231,16 +232,22 @@ fun CafeteriaScreen(
 @Composable
 private fun WeekNavigator(monday: LocalDate, onPrevious: () -> Unit, onNext: () -> Unit, onThisWeek: () -> Unit) {
     val friday = monday.plus(4, DateTimeUnit.DAY)
+    // #165 폰: 날짜를 짧게 (10/27 – 10/31 · W44) 써서 한 줄에 맞춘다.
+    val compact = LocalCompactLayout.current
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         NavButton(text = "‹", onClick = onPrevious, square = true)
         Text(
-            text = "${monday.month.number}월 ${monday.day}일 – ${friday.month.number}월 ${friday.day}일",
+            text = if (compact) {
+                "${monday.month.number}/${monday.day} – ${friday.month.number}/${friday.day}"
+            } else {
+                "${monday.month.number}월 ${monday.day}일 – ${friday.month.number}월 ${friday.day}일"
+            },
             color = MeowColors.TextPrimary,
-            fontSize = 18.sp,
+            fontSize = if (compact) 16.sp else 18.sp,
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = "Week ${monday.isoWeekNumber()}",
+            text = if (compact) "W${monday.isoWeekNumber()}" else "Week ${monday.isoWeekNumber()}",
             color = MeowColors.TextTertiary,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,

@@ -60,6 +60,7 @@ import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
 import com.aivn.meow.ui.card.CardDiscussionStore
 import com.aivn.meow.ui.card.LocalCardDiscussions
+import com.aivn.meow.ui.common.LocalCompactLayout
 import com.aivn.meow.ui.common.MeowType
 import com.aivn.meow.ui.common.PageHeader
 import com.aivn.meow.ui.common.pageBodyWidth
@@ -116,13 +117,16 @@ private fun DashboardContent(
             override fun openUri(uri: String) = onOpenUrl(uri)
         }
     }
+    val compact = LocalCompactLayout.current
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val bodyWidth = pageBodyWidth(maxWidth)
         CompositionLocalProvider(LocalUriHandler provides uriHandler) {
             DashboardBody(
                 state = state,
                 // 본문이 좁으면 사이드바를 숨기고 메인만 보여준다
-                showSidebar = bodyWidth >= SidebarMinBodyWidth,
+                // #165 폰은 사이드바 대신 탭 위에 즐겨찾기 칩 줄을 둔다
+                showSidebar = !compact && bodyWidth >= SidebarMinBodyWidth,
+                showFavoriteChips = compact,
                 onRefresh = onRefresh,
                 onOpenPr = onOpenPr,
                 onOpenUrl = onOpenUrl,
@@ -142,6 +146,7 @@ private val SidebarMinBodyWidth = 760.dp
 private fun DashboardBody(
     state: DashboardUiState.Loaded,
     showSidebar: Boolean,
+    showFavoriteChips: Boolean,
     onRefresh: () -> Unit,
     onOpenPr: (PullRequest) -> Unit,
     onOpenUrl: (String) -> Unit,
@@ -353,6 +358,13 @@ private fun DashboardBody(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(20.dp),
                     ) {
+                        if (showFavoriteChips) {
+                            FavoriteChipRow(
+                                repos = sidebarRepos,
+                                onToggle = ::toggleSidebarRepo,
+                                onManage = { showRepoManager = true },
+                            )
+                        }
                         DashboardTabBar(
                             tabs = tabs,
                             selectedIndex = tabIndex,
@@ -371,7 +383,7 @@ private fun DashboardBody(
                         }
                         if (nothingChecked) {
                             EmptyStateCard(
-                                title = "사이드바에서 레포를 체크해 주세요",
+                                title = if (showFavoriteChips) "위 즐겨찾기 칩에서 레포를 골라 주세요" else "사이드바에서 레포를 체크해 주세요",
                                 hint = "체크한 즐겨찾기 레포의 항목만 여기에 보여요",
                                 modifier = Modifier.fillMaxWidth(),
                             )

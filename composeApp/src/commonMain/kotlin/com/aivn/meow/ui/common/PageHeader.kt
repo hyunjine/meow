@@ -47,13 +47,22 @@ fun pageBodyWidth(maxWidth: Dp): Dp = minOf(maxWidth - PageHorizontalPadding - P
 /**
  * 모든 화면 본문 컨테이너 공통 modifier. 왼쪽 [PageHorizontalPadding], 오른쪽 [PageEndPadding] 여백을 두고
  * 폭은 [PageMaxWidth] 까지만 쓴다. 남는 폭은 오른쪽으로 보내 본문이 드로워 옆에 왼쪽 정렬되게 한다.
+ * #165 폰([LocalCompactLayout])은 오른쪽 드로워 폭 여백 없이 좌우 [CompactGutter] 만 둔다.
  */
-fun Modifier.pageContent(): Modifier = this
-    .fillMaxWidth()
-    .wrapContentWidth(Alignment.Start)
-    .padding(start = PageHorizontalPadding, end = PageEndPadding, top = PageVerticalPadding, bottom = PageVerticalPadding)
-    .fillMaxWidth()
-    .widthIn(max = PageMaxWidth)
+@Composable
+fun Modifier.pageContent(): Modifier =
+    if (LocalCompactLayout.current) {
+        this
+            .fillMaxWidth()
+            .padding(start = CompactGutter, end = CompactGutter, top = CompactGutter, bottom = CompactGutter * 2)
+    } else {
+        this
+            .fillMaxWidth()
+            .wrapContentWidth(Alignment.Start)
+            .padding(start = PageHorizontalPadding, end = PageEndPadding, top = PageVerticalPadding, bottom = PageVerticalPadding)
+            .fillMaxWidth()
+            .widthIn(max = PageMaxWidth)
+    }
 
 /**
  * 모든 화면 공통 제목 줄. 좌: 제목 (+ 부제), 우: 마지막 동기화 상태 + [동기화] 버튼.
@@ -71,6 +80,10 @@ fun PageHeader(
     syncing: Boolean = false,
     syncEnabled: Boolean = true,
 ) {
+    if (LocalCompactLayout.current) {
+        CompactPageHeader(title, syncLabel, syncValue, onSync, modifier, subtitle, syncOk, syncing, syncEnabled)
+        return
+    }
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -88,6 +101,50 @@ fun PageHeader(
         ) {
             SyncStatus(label = syncLabel, value = syncValue, ok = syncOk)
             SyncButton(onClick = onSync, syncing = syncing, enabled = syncEnabled && !syncing)
+        }
+    }
+}
+
+/** #165 폰 제목 줄: 제목 + 동기화 버튼 한 줄, 그 아래 부제 · 동기화 상태를 한 줄씩. */
+@Composable
+private fun CompactPageHeader(
+    title: String,
+    syncLabel: String,
+    syncValue: String,
+    onSync: () -> Unit,
+    modifier: Modifier,
+    subtitle: String?,
+    syncOk: Boolean,
+    syncing: Boolean,
+    syncEnabled: Boolean,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                text = title,
+                modifier = Modifier.weight(1f),
+                color = MeowColors.TextPrimary,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            SyncButton(onClick = onSync, syncing = syncing, enabled = syncEnabled && !syncing)
+        }
+        subtitle?.let {
+            Text(text = it, color = MeowColors.TextTertiary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .clip(CircleShape)
+                    .background(if (syncOk) MeowColors.Success else MeowColors.Warning),
+            )
+            Text(
+                text = "$syncLabel · $syncValue",
+                color = MeowColors.TextSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+            )
         }
     }
 }
