@@ -28,11 +28,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.aivn.meow.model.PrBranches
+import com.aivn.meow.model.middleEllipsis
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.ui.common.MeowType
 import com.aivn.meow.ui.detail.DetailItem
@@ -117,6 +121,7 @@ internal fun ListRow(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+            item.branches?.let { BranchLine(it) }
         }
         if (item.chips.isNotEmpty()) {
             FlowRow(
@@ -132,6 +137,27 @@ internal fun ListRow(
 }
 
 private val ChevronColor = Color(0xFFC9CCDA)
+
+private val BranchStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 18.sp)
+
+/**
+ * #168 목록 행 제목 아래 `head → base` 한 줄. 긴 head 는 가운데를 줄이고([middleEllipsis]),
+ * 그래도 넘치면 head 쪽만 끝을 잘라 base 는 늘 보이게 한다.
+ */
+@Composable
+private fun BranchLine(branches: PrBranches) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = middleEllipsis(branches.head, PrBranches.DEFAULT_MAX_HEAD),
+            modifier = Modifier.weight(1f, fill = false),
+            style = BranchStyle,
+            color = MeowColors.TextTertiary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(text = PrBranches.ARROW + branches.base, style = BranchStyle, color = MeowColors.TextTertiary, maxLines = 1)
+    }
+}
 
 /** 리플 없이 눌리고, 마우스를 올리면 손가락 커서를 보여 준다. */
 @Composable

@@ -47,6 +47,10 @@ data class PullRequestNode(
     val repository: RepositoryNode,
     val labels: LabelConnection,
     val commits: CommitConnection,
+    val headRefName: String? = null,
+    val baseRefName: String? = null,
+    val isCrossRepository: Boolean = false,
+    val headRepositoryOwner: OwnerLogin? = null,
 )
 
 @Serializable
