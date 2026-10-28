@@ -53,7 +53,7 @@ data class ScheduleUiState(
 }
 
 /**
- * 일정 화면 상태. App 수준에서 만들어 화면 전환에도 불러온 주를 유지한다.
+ * 출근 화면 상태. App 수준에서 만들어 화면 전환에도 불러온 주를 유지한다.
  * 화면이 열리고 Microsoft 계정이 연결돼 있으면 보고 있는 주를 (아직 없을 때만) 불러온다.
  */
 class ScheduleViewModel(
