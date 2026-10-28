@@ -40,6 +40,12 @@ kotlin {
             implementation(libs.kotlinx.coroutines.swing)
             implementation(libs.ktor.client.cio)
         }
+        val desktopTest by getting {
+            dependencies {
+                // #161 SelectionContainer 복사 · 단축키 UI 테스트 (runComposeUiTest)
+                implementation(libs.compose.ui.test)
+            }
+        }
     }
 }
 
@@ -71,7 +77,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg)
             packageName = "Meow"
-            packageVersion = "1.6.0"
+            packageVersion = "1.7.0"
             description = "Personal PR review dashboard for Team-AIVN"
             copyright = "© 2026 aivn"
             vendor = "aivn"
