@@ -28,3 +28,6 @@ interface RefreshTokenStore {
 }
 
 expect fun defaultRefreshTokenStore(): RefreshTokenStore
+
+/** #165 이 플랫폼에서 Microsoft 로그인을 할 수 있는지. iOS 는 2단계 전까지 false (화면에 안내만 보여 준다). */
+expect val msLoginSupported: Boolean

@@ -10,6 +10,15 @@ plugins {
 kotlin {
     jvm("desktop")
 
+    // #165 아이폰 앱. Xcode(iosApp/) 의 embedAndSignAppleFrameworkForXcode 빌드 단계가 이 프레임워크를 만든다.
+    listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
+        target.binaries.framework {
+            baseName = "ComposeApp"
+            isStatic = true
+            binaryOption("bundleId", "com.aivn.meow.ComposeApp")
+        }
+    }
+
     sourceSets {
         val desktopMain by getting
 
@@ -39,6 +48,9 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutines.swing)
             implementation(libs.ktor.client.cio)
+        }
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
         }
         val desktopTest by getting {
             dependencies {
