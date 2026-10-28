@@ -18,6 +18,10 @@ data class CommentThreadNode(
     override val author: Author? = null,
     override val repository: RepositoryNode,
     override val labels: LabelConnection,
+    override val headRefName: String? = null,
+    override val baseRefName: String? = null,
+    override val isCrossRepository: Boolean = false,
+    override val headRepositoryOwner: OwnerLogin? = null,
     val comments: ThreadCommentConnection = ThreadCommentConnection(),
     val reviews: ThreadCommentConnection = ThreadCommentConnection(),
 ) : SearchItemFields
@@ -82,14 +86,14 @@ suspend fun GithubClient.searchCommentThreads(org: String, sinceDate: String): C
             issueCount
             nodes {
               ... on Issue { $SEARCH_ITEM_FIELDS $COMMENTS_FIELD }
-              ... on PullRequest { $SEARCH_ITEM_FIELDS $COMMENTS_FIELD $REVIEWS_FIELD }
+              ... on PullRequest { $PR_SEARCH_ITEM_FIELDS $COMMENTS_FIELD $REVIEWS_FIELD }
             }
           }
           joined: search(query: ${'$'}joined, type: ISSUE, first: $THREAD_SEARCH_SIZE) {
             issueCount
             nodes {
               ... on Issue { $SEARCH_ITEM_FIELDS $COMMENTS_FIELD }
-              ... on PullRequest { $SEARCH_ITEM_FIELDS $COMMENTS_FIELD $JOINED_REVIEWS_FIELD }
+              ... on PullRequest { $PR_SEARCH_ITEM_FIELDS $COMMENTS_FIELD $JOINED_REVIEWS_FIELD }
             }
           }
         }
