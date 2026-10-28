@@ -58,6 +58,7 @@ import com.aivn.meow.ui.StatusChipView
 import com.aivn.meow.ui.card.DetailBody
 import com.aivn.meow.ui.common.MeowType
 import com.aivn.meow.ui.common.OpenOriginalButton
+import com.aivn.meow.ui.common.consumeClicks
 import com.aivn.meow.ui.pr.MergeFooter
 import com.aivn.meow.util.relativeTime
 
@@ -128,12 +129,13 @@ internal fun DetailModal(
                     .shadow(elevation = 40.dp, shape = ModalShape, ambientColor = ModalShadow, spotColor = ModalShadow)
                     .background(MeowColors.Surface, ModalShape)
                     .clip(ModalShape)
-                    // 카드 안 클릭이 어두운 영역으로 전달돼 닫히지 않도록 소비한다
-                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
+                    // 카드 안 클릭이 어두운 영역으로 전달돼 닫히지 않도록 소비한다.
+                    // #161 clickable 로 막으면 누를 때 카드가 포커스를 가져가 선택 영역의 ⌘C 복사가 안 되므로 누름만 소비한다.
+                    .consumeClicks()
                     .padding(horizontal = 28.dp, vertical = 24.dp),
             ) {
                 // #155 제목 · 메타 · 본문 · 댓글 · 리뷰를 드래그로 골라 ⌘C 로 복사할 수 있게 한다.
-                // 선택 컨테이너가 포커스를 가져가도 키 이벤트는 바깥 Box 의 onKeyEvent 로 올라가 Esc · ← → 가 그대로 동작한다.
+                // 글자를 누르면 선택 컨테이너가 포커스를 가져가 ⌘C 를 받고, 다른 키는 바깥 Box 의 onKeyEvent 로 올라가 Esc · ← → 가 그대로 동작한다.
                 // 버튼 · 탭 · 머지 바처럼 누르는 곳은 DisableSelection 으로 감싸 클릭이 선택에 먹히지 않게 한다.
                 SelectionContainer(modifier = Modifier.fillMaxSize()) {
                     ModalContent(item = item, onOpenOriginal = onOpenOriginal, onClose = onClose)

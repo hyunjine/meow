@@ -40,6 +40,12 @@ kotlin {
             implementation(libs.kotlinx.coroutines.swing)
             implementation(libs.ktor.client.cio)
         }
+        val desktopTest by getting {
+            dependencies {
+                // #161 SelectionContainer 복사 · 단축키 UI 테스트 (runComposeUiTest)
+                implementation(libs.compose.ui.test)
+            }
+        }
     }
 }
 
