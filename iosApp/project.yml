@@ -58,6 +58,23 @@ targets:
           fi
           cd "$SRCROOT/.."
           ./gradlew :composeApp:embedAndSignAppleFrameworkForXcode
+    # #165 개인용 빌드: 이 맥의 데스크톱 설정(~/.config/meow, 없으면 ~/.meow)의 GitHub 토큰 · Supabase 값을
+    # 앱 번들 meow-config/ 에 넣어, 설정 화면에서 붙여 넣지 않아도 바로 연결되게 한다. 값은 git 에 들어가지 않고 출력하지도 않는다.
+    postBuildScripts:
+      - name: Bundle Meow Config
+        basedOnDependencyAnalysis: false
+        script: |
+          DEST="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/meow-config"
+          rm -rf "$DEST"
+          mkdir -p "$DEST"
+          for name in token supabase_url supabase_anon; do
+            for dir in "$HOME/.config/meow" "$HOME/.meow"; do
+              if [ -s "$dir/$name" ]; then
+                cp "$dir/$name" "$DEST/$name" && chmod 644 "$DEST/$name"
+                break
+              fi
+            done
+          done
 schemes:
   iosApp:
     build:

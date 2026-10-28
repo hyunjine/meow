@@ -95,6 +95,7 @@
 				297B59D9CE634556D6007C40 /* Sources */,
 				1623B02D10928C8101C1F806 /* Resources */,
 				EF8A6E9BFD470986D9D5C9B5 /* Frameworks */,
+				5FE49E156AF67B6F36351362 /* Bundle Meow Config */,
 			);
 			buildRules = (
 			);
@@ -171,6 +172,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\ncd \"$SRCROOT/..\"\n./gradlew :composeApp:embedAndSignAppleFrameworkForXcode\n";
+		};
+		5FE49E156AF67B6F36351362 /* Bundle Meow Config */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Bundle Meow Config";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "DEST=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/meow-config\"\nrm -rf \"$DEST\"\nmkdir -p \"$DEST\"\nfor name in token supabase_url supabase_anon; do\n  for dir in \"$HOME/.config/meow\" \"$HOME/.meow\"; do\n    if [ -s \"$dir/$name\" ]; then\n      cp \"$dir/$name\" \"$DEST/$name\" && chmod 644 \"$DEST/$name\"\n      break\n    fi\n  done\ndone\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
