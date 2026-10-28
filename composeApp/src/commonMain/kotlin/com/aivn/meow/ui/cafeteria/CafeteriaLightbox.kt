@@ -57,6 +57,7 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.aivn.meow.cafeteria.CafeteriaPhoto
 import com.aivn.meow.ui.common.OpenOriginalButton
+import com.aivn.meow.ui.common.consumeClicks
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.number
 import kotlinx.datetime.plus
@@ -171,7 +172,8 @@ internal fun CafeteriaLightbox(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 // #155 제목 · 날짜를 복사할 수 있게 한다. 키 이벤트는 바깥 Box 로 올라가 esc · ← → 가 그대로 동작한다.
-                SelectionContainer(modifier = Modifier.weight(1f)) {
+                // #161 누름을 소비해 바깥 배경의 clickable(닫기)이 포커스를 가져가거나 닫히지 않게 한다 — 그래야 ⌘C 가 선택 영역에 닿는다.
+                SelectionContainer(modifier = Modifier.weight(1f).consumeClicks()) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(text = title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                         if (subtitle.isNotBlank()) {
