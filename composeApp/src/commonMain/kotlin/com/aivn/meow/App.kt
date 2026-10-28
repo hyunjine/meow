@@ -35,9 +35,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aivn.meow.cafeteria.CafeteriaRepository
 import com.aivn.meow.cafeteria.KakaoChannelClient
+import com.aivn.meow.config.AccountSettings
 import com.aivn.meow.config.AppConfig
 import com.aivn.meow.data.PrRepository
 import com.aivn.meow.github.GithubClient
+import com.aivn.meow.github.fetchViewerLogin
 import com.aivn.meow.model.PullRequest
 import com.aivn.meow.ms.GraphClient
 import com.aivn.meow.ms.MsAuth
@@ -53,6 +55,8 @@ import com.aivn.meow.ui.cafeteria.CafeteriaScreen
 import com.aivn.meow.ui.cafeteria.CafeteriaViewModel
 import com.aivn.meow.ui.common.ConnectLaterCard
 import com.aivn.meow.ui.common.LocalCompactLayout
+import com.aivn.meow.ui.common.LocalOpenSettings
+import com.aivn.meow.ui.common.SettingsButton
 import com.aivn.meow.ui.common.pageContent
 import com.aivn.meow.ui.nav.AppDrawer
 import com.aivn.meow.ui.nav.BottomTabBar
@@ -64,6 +68,7 @@ import com.aivn.meow.ui.schedule.OutlookOpenResult
 import com.aivn.meow.ui.schedule.ScheduleScreen
 import com.aivn.meow.ui.schedule.ScheduleViewModel
 import com.aivn.meow.ui.sections.DashboardSections
+import com.aivn.meow.ui.settings.SettingsScreen
 import com.aivn.meow.ui.weekly.WeeklyReportScreen
 import com.aivn.meow.ui.weekly.WeeklyReportViewModel
 import com.aivn.meow.weekly.WeeklyDraftBuilder
@@ -87,6 +92,10 @@ fun App(
     // #165 GitHub 토큰이 없으면(아이폰 1단계) GitHub 화면에 연결 안내만 보여 주고 조회하지 않는다.
     githubConnected: Boolean = true,
     initialScreen: AppScreen = AppScreen.GITHUB,
+    // #165 아이폰 설정 화면(GitHub 토큰 · Supabase 저장). 데스크톱은 null — 설정 화면 · ⚙︎ 가 없다.
+    accountSettings: AccountSettings? = null,
+    // #165 개발용: 설정 화면을 연 채로 시작한다 (MEOW_START_SCREEN=SETTINGS).
+    initialShowSettings: Boolean = false,
 ) {
     val scope = rememberCoroutineScope()
     val viewModel = remember(config.token) {
@@ -138,6 +147,9 @@ fun App(
     val viewerLogin = snapshot?.viewerLogin
     // 앱은 항상 GitHub 화면(아이폰은 [initialScreen])으로 시작한다 (선택은 저장하지 않음)
     var screen by remember { mutableStateOf(initialScreen) }
+    // #165 아이폰 설정 화면(전체 화면 위에 덮는다).
+    var showSettings by remember { mutableStateOf(initialShowSettings) }
+    val openSettings: (() -> Unit)? = accountSettings?.let { { showSettings = true } }
     // 화면별 rememberSaveable 상태(탭 · 정렬 · 스크롤 등)를 화면 전환 후에도 유지
     val screenStateHolder = rememberSaveableStateHolder()
 
@@ -191,19 +203,44 @@ fun App(
     }
 
     MeowTheme {
-        CompositionLocalProvider(LocalCompactLayout provides compact) {
+        CompositionLocalProvider(LocalCompactLayout provides compact, LocalOpenSettings provides openSettings) {
             if (compact) {
                 // #165 아이폰: 위 · 좌우 safe area 안에 화면, 아래에 하단 탭 바(홈 인디케이터 여백 포함).
-                Column(modifier = Modifier.fillMaxSize().background(MeowColors.Background)) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
-                    ) {
-                        screenContent()
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Column(modifier = Modifier.fillMaxSize().background(MeowColors.Background)) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
+                        ) {
+                            screenContent()
+                        }
+                        BottomTabBar(selected = screen, onSelect = onSelectScreen)
                     }
-                    BottomTabBar(selected = screen, onSelect = onSelectScreen)
+                    if (showSettings && accountSettings != null) {
+                        val msAuth by weeklyViewModel.auth.state.collectAsState()
+                        SettingsScreen(
+                            settings = accountSettings,
+                            githubLogin = viewerLogin,
+                            validateGithubToken = { token ->
+                                val client = githubClientFactory(token)
+                                try {
+                                    client.fetchViewerLogin()
+                                } finally {
+                                    client.close()
+                                }
+                            },
+                            msAuth = msAuth,
+                            onMsConnect = weeklyViewModel::signIn,
+                            onMsSignOut = weeklyViewModel::signOut,
+                            onOpenUrl = onOpenUrl,
+                            onClose = { showSettings = false },
+                            modifier = Modifier
+                                .background(MeowColors.Background)
+                                .windowInsetsPadding(WindowInsets.safeDrawing),
+                        )
+                    }
                 }
             } else {
                 Row(modifier = Modifier.fillMaxSize()) {
@@ -223,13 +260,27 @@ fun App(
     }
 }
 
-/** #165 GitHub 토큰 없이 연 아이폰 앱의 GitHub 화면. 토큰 입력 · 기기 로그인은 2단계. */
+/** #165 GitHub 토큰 없이 연 아이폰 앱의 GitHub 화면. 설정 화면에서 토큰을 넣으면 대시보드로 바뀐다. */
 @Composable
 private fun GithubConnectLater() {
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Column(modifier = Modifier.pageContent(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            Text(text = "GitHub", color = MeowColors.TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            ConnectLaterCard(emoji = "🐙", title = "GitHub 계정이 연결되지 않았어요")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "GitHub",
+                    modifier = Modifier.weight(1f),
+                    color = MeowColors.TextPrimary,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                LocalOpenSettings.current?.let { SettingsButton(onClick = it) }
+            }
+            ConnectLaterCard(
+                emoji = "🐙",
+                title = "GitHub 계정이 연결되지 않았어요",
+                hint = "Personal Access Token 을 넣으면 리뷰 요청 · 내 PR 을 볼 수 있어요",
+                actionLabel = "GitHub 연결하기",
+            )
         }
     }
 }

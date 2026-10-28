@@ -1,6 +1,7 @@
 package com.aivn.meow.ui.common
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -127,6 +129,7 @@ private fun CompactPageHeader(
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
             )
+            LocalOpenSettings.current?.let { SettingsButton(onClick = it) }
             SyncButton(onClick = onSync, syncing = syncing, enabled = syncEnabled && !syncing)
         }
         subtitle?.let {
@@ -146,6 +149,22 @@ private fun CompactPageHeader(
                 fontWeight = FontWeight.Medium,
             )
         }
+    }
+}
+
+/** #165 폰 제목 줄의 ⚙︎ — 설정 화면(GitHub 토큰 · Microsoft · Supabase)을 연다. */
+@Composable
+fun SettingsButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(40.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MeowColors.Surface)
+            .border(1.dp, MeowColors.GlassBorder, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(Icons.Outlined.Settings, contentDescription = "설정", tint = MeowColors.TextSecondary, modifier = Modifier.size(20.dp))
     }
 }
 
