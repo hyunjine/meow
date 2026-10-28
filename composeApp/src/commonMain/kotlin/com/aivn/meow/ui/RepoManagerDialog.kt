@@ -54,6 +54,7 @@ import com.aivn.meow.data.RepoUniverse
 import com.aivn.meow.data.repoOwner
 import com.aivn.meow.data.repoShortName
 import com.aivn.meow.theme.MeowColors
+import com.aivn.meow.ui.common.LocalCompactLayout
 
 private val SegmentTrack = Color(0xFFF1F2F6)
 private val OrgBadgeBg = Color(0xFFEEF1FF)
@@ -120,9 +121,11 @@ internal fun RepoManagerDialog(
         contentAlignment = Alignment.Center,
     ) {
         val cardShape = RoundedCornerShape(24.dp)
+        // #165 폰: 바깥 여백 · 안쪽 여백을 줄인다.
+        val compact = LocalCompactLayout.current
         Column(
             modifier = Modifier
-                .padding(24.dp)
+                .padding(if (compact) 12.dp else 24.dp)
                 .widthIn(max = 580.dp)
                 .fillMaxWidth()
                 .heightIn(max = minOf(640.dp, maxHeight * 0.9f))
@@ -130,7 +133,7 @@ internal fun RepoManagerDialog(
                 .background(MeowColors.Surface, cardShape)
                 // 카드 안 클릭이 dim 으로 전달돼 모달이 닫히지 않도록 소비한다
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
-                .padding(horizontal = 28.dp, vertical = 24.dp),
+                .padding(horizontal = if (compact) 18.dp else 28.dp, vertical = if (compact) 18.dp else 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
