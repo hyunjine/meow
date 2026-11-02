@@ -7,6 +7,7 @@ import com.aivn.meow.github.fetchOrgRepoNames
 import com.aivn.meow.github.fetchViewerRepos
 import com.aivn.meow.model.CiStatus
 import com.aivn.meow.model.Label
+import com.aivn.meow.model.PrBranches
 import com.aivn.meow.model.PullRequest
 import com.aivn.meow.theme.MeowColors
 import kotlinx.coroutines.async
@@ -99,6 +100,7 @@ private fun PullRequestNode.toDomain(): PullRequest {
         url = url,
         body = body,
         repoFullName = repository.nameWithOwner,
+        branches = PrBranches.of(headRefName, baseRefName, isCrossRepository, headRepositoryOwner?.login),
     )
 }
 

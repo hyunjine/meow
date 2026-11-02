@@ -1,12 +1,16 @@
 package com.aivn.meow.ui.detail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -41,6 +45,8 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -52,12 +58,16 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import com.aivn.meow.model.PrBranches
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.ui.PillChip
 import com.aivn.meow.ui.StatusChipView
 import com.aivn.meow.ui.card.DetailBody
 import com.aivn.meow.ui.common.MeowType
+import com.aivn.meow.ui.common.CompactGutter
+import com.aivn.meow.ui.common.LocalCompactLayout
 import com.aivn.meow.ui.common.OpenOriginalButton
+import com.aivn.meow.ui.common.consumeClicks
 import com.aivn.meow.ui.pr.MergeFooter
 import com.aivn.meow.util.relativeTime
 
@@ -119,21 +129,32 @@ internal fun DetailModal(
         ) {
             // #155 항목을 넘길 때마다 다시 포커스를 가져온다 — 포커스를 가진 선택 영역(머지 바 문구)이 사라져도 Esc · ← → 가 계속 동작하도록.
             LaunchedEffect(item.url) { focusRequester.requestFocus() }
-            val width = ModalWidth.coerceAtMost(maxWidth - 48.dp)
-            val height = (maxHeight - ModalVerticalMargin).coerceAtLeast(ModalMinHeight).coerceAtMost(maxHeight)
-            Box(
-                modifier = Modifier
+            // #165 폰에서는 화면 전체를 덮는 시트로 띄우고, 노치 · 홈 인디케이터(safe area) 안쪽에 내용을 둔다.
+            val compact = LocalCompactLayout.current
+            val sheetModifier = if (compact) {
+                Modifier
+                    .fillMaxSize()
+                    .background(MeowColors.Surface)
+                    .consumeClicks()
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(horizontal = CompactGutter, vertical = 12.dp)
+            } else {
+                val width = ModalWidth.coerceAtMost(maxWidth - 48.dp)
+                val height = (maxHeight - ModalVerticalMargin).coerceAtLeast(ModalMinHeight).coerceAtMost(maxHeight)
+                Modifier
                     .width(width)
                     .height(height)
                     .shadow(elevation = 40.dp, shape = ModalShape, ambientColor = ModalShadow, spotColor = ModalShadow)
                     .background(MeowColors.Surface, ModalShape)
                     .clip(ModalShape)
-                    // 카드 안 클릭이 어두운 영역으로 전달돼 닫히지 않도록 소비한다
-                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
-                    .padding(horizontal = 28.dp, vertical = 24.dp),
-            ) {
+                    // 카드 안 클릭이 어두운 영역으로 전달돼 닫히지 않도록 소비한다.
+                    // #161 clickable 로 막으면 누를 때 카드가 포커스를 가져가 선택 영역의 ⌘C 복사가 안 되므로 누름만 소비한다.
+                    .consumeClicks()
+                    .padding(horizontal = 28.dp, vertical = 24.dp)
+            }
+            Box(modifier = sheetModifier) {
                 // #155 제목 · 메타 · 본문 · 댓글 · 리뷰를 드래그로 골라 ⌘C 로 복사할 수 있게 한다.
-                // 선택 컨테이너가 포커스를 가져가도 키 이벤트는 바깥 Box 의 onKeyEvent 로 올라가 Esc · ← → 가 그대로 동작한다.
+                // 글자를 누르면 선택 컨테이너가 포커스를 가져가 ⌘C 를 받고, 다른 키는 바깥 Box 의 onKeyEvent 로 올라가 Esc · ← → 가 그대로 동작한다.
                 // 버튼 · 탭 · 머지 바처럼 누르는 곳은 DisableSelection 으로 감싸 클릭이 선택에 먹히지 않게 한다.
                 SelectionContainer(modifier = Modifier.fillMaxSize()) {
                     ModalContent(item = item, onOpenOriginal = onOpenOriginal, onClose = onClose)
@@ -160,6 +181,7 @@ private fun ModalContent(item: DetailItem, onOpenOriginal: () -> Unit, onClose: 
             maxLines = 3,
             overflow = TextOverflow.Ellipsis,
         )
+        item.branches?.let { BranchChips(it) }
         val chips = listOfNotNull(item.kindLabel) + item.chips
         if (chips.isNotEmpty()) {
             FlowRow(
@@ -210,4 +232,36 @@ private fun Header(item: DetailItem, onOpenOriginal: () -> Unit, onClose: () -> 
             Icon(Icons.Default.Close, contentDescription = "닫기", tint = MeowColors.TextTertiary, modifier = Modifier.size(18.dp))
         }
     }
+}
+
+private val BranchChipShape = RoundedCornerShape(6.dp)
+private val BranchTextStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 18.sp)
+
+/** #168 제목 아래 `head` → `base` 브랜치 칩 한 쌍. 전체 이름을 보여주고, 선택 · 복사할 수 있다. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BranchChips(branches: PrBranches) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        BranchChip(branches.head)
+        Text(text = "→", style = BranchTextStyle, color = MeowColors.TextTertiary)
+        BranchChip(branches.base)
+    }
+}
+
+@Composable
+private fun BranchChip(name: String) {
+    Text(
+        text = name,
+        modifier = Modifier
+            .clip(BranchChipShape)
+            .background(MeowColors.TextTertiary.copy(alpha = 0.08f))
+            .border(1.dp, MeowColors.TextTertiary.copy(alpha = 0.22f), BranchChipShape)
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        style = BranchTextStyle,
+        color = MeowColors.TextSecondary,
+    )
 }

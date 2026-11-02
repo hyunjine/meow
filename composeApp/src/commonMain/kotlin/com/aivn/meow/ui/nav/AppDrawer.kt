@@ -55,7 +55,7 @@ data class DrawerItem(val screen: AppScreen, val label: String, val icon: @Compo
 val AppDrawerItems = listOf(
     DrawerItem(AppScreen.GITHUB, "GitHub") { painterResource(Res.drawable.github_mark) },
     DrawerItem(AppScreen.WEEKLY_REPORT, "주간 보고") { rememberVectorPainter(Icons.Outlined.Description) },
-    DrawerItem(AppScreen.SCHEDULE, "일정") { rememberVectorPainter(Icons.Outlined.CalendarMonth) },
+    DrawerItem(AppScreen.SCHEDULE, "출근") { rememberVectorPainter(Icons.Outlined.CalendarMonth) },
     DrawerItem(AppScreen.CAFETERIA, "구내 식당") { rememberVectorPainter(Icons.Outlined.Restaurant) },
 )
 

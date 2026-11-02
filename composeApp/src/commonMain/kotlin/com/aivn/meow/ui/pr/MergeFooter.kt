@@ -68,6 +68,7 @@ import com.aivn.meow.github.fetchMergeState
 import com.aivn.meow.github.mergePullRequest
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.ui.common.MeowType
+import com.aivn.meow.ui.common.consumeClicks
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -248,8 +249,9 @@ fun MergeFooter(prUrl: String, prNumber: Int, prTitle: String, modifier: Modifie
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(FooterBg)
-            // 푸터 클릭이 카드 펼침 토글로 전달되지 않도록 소비한다
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
+            // 푸터 클릭이 바깥(모달 배경)으로 전달되지 않도록 소비한다.
+            // #161 clickable 로 막으면 누를 때 푸터가 포커스를 가져가 상태 문구의 ⌘C 복사가 안 되므로 누름만 소비한다.
+            .consumeClicks()
             .padding(horizontal = 14.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,

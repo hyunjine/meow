@@ -1,0 +1,86 @@
+# #165 iosApp.xcodeproj 생성 스펙 (XcodeGen). 프로젝트 구성을 바꿀 때는 이 파일을 고친 뒤
+#   cd iosApp && xcodegen generate
+# 로 iosApp.xcodeproj 를 다시 만들어 함께 커밋한다. Xcode 로만 열고 빌드할 때는 xcodegen 이 필요 없다.
+name: iosApp
+options:
+  bundleIdPrefix: com.aivn
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+configFiles:
+  Debug: Configuration/Config.xcconfig
+  Release: Configuration/Config.xcconfig
+settings:
+  base:
+    MARKETING_VERSION: "1.7.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  iosApp:
+    type: application
+    platform: iOS
+    sources:
+      - path: iosApp
+    # #165 Microsoft 로그인(ASWebAuthenticationSession) · 키체인. 정적 Kotlin 프레임워크가 쓰는 시스템 프레임워크를 앱에서 링크한다.
+    dependencies:
+      - sdk: AuthenticationServices.framework
+      - sdk: Security.framework
+    settings:
+      base:
+        PRODUCT_NAME: $(APP_NAME)
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID)
+        DEVELOPMENT_TEAM: $(TEAM_ID)
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: Apple Development
+        INFOPLIST_FILE: iosApp/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MACCATALYST: NO
+        SWIFT_VERSION: "5.0"
+        ENABLE_PREVIEWS: YES
+        # Gradle 이 만든 정적 프레임워크(ComposeApp.framework) 위치 · 링크
+        FRAMEWORK_SEARCH_PATHS:
+          - $(inherited)
+          - $(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
+        OTHER_LDFLAGS:
+          - $(inherited)
+          - -framework
+          - ComposeApp
+        # Gradle 빌드 단계가 프로젝트 폴더 밖(composeApp/)을 읽고 써야 한다.
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+    preBuildScripts:
+      - name: Compile Kotlin Framework
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ "YES" = "$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED" ]; then
+            echo "Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \"YES\""
+            exit 0
+          fi
+          cd "$SRCROOT/.."
+          ./gradlew :composeApp:embedAndSignAppleFrameworkForXcode
+    # #165 개인용 빌드: 이 맥의 데스크톱 설정(~/.config/meow, 없으면 ~/.meow)의 GitHub 토큰 · Supabase 값을
+    # 앱 번들 meow-config/ 에 넣어, 설정 화면에서 붙여 넣지 않아도 바로 연결되게 한다. 값은 git 에 들어가지 않고 출력하지도 않는다.
+    postBuildScripts:
+      - name: Bundle Meow Config
+        basedOnDependencyAnalysis: false
+        script: |
+          DEST="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/meow-config"
+          rm -rf "$DEST"
+          mkdir -p "$DEST"
+          for name in token supabase_url supabase_anon; do
+            for dir in "$HOME/.config/meow" "$HOME/.meow"; do
+              if [ -s "$dir/$name" ]; then
+                cp "$dir/$name" "$DEST/$name" && chmod 644 "$DEST/$name"
+                break
+              fi
+            done
+          done
+schemes:
+  iosApp:
+    build:
+      targets:
+        iosApp: all
+    run:
+      config: Debug
+    archive:
+      config: Release

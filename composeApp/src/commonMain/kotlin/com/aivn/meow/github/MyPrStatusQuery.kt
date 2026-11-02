@@ -15,6 +15,10 @@ data class MyPrStatusNode(
     override val author: Author? = null,
     override val repository: RepositoryNode,
     override val labels: LabelConnection,
+    override val headRefName: String? = null,
+    override val baseRefName: String? = null,
+    override val isCrossRepository: Boolean = false,
+    override val headRepositoryOwner: OwnerLogin? = null,
     val isDraft: Boolean = false,
     /** APPROVED / CHANGES_REQUESTED / REVIEW_REQUIRED. 리뷰 규칙이 없는 저장소는 null. */
     val reviewDecision: String? = null,
@@ -48,7 +52,7 @@ data class ReviewStateNode(val state: String)
 @Serializable
 data class TotalCountNode(val totalCount: Int)
 
-private const val MY_PR_STATUS_FIELDS = SEARCH_ITEM_FIELDS + """
+private const val MY_PR_STATUS_FIELDS = PR_SEARCH_ITEM_FIELDS + """
     isDraft
     reviewDecision
     reviewThreads(first: 50) { nodes { isResolved } }
