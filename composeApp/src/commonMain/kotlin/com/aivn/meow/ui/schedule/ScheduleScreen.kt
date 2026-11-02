@@ -65,7 +65,7 @@ private val NameColor = Color(0xFF0D0F26)
 private val NoteColor = Color(0xFF616A94)
 private val DayLetters = listOf("월", "화", "수", "목", "금")
 
-/** 일정 화면: TeamAIVN 공용 캘린더에서 이번 주 월~금 부재자(휴가 · 반차 · 출장 …)를 요일 칸으로 보여 준다. */
+/** 출근 화면: TeamAIVN 공용 캘린더에서 이번 주 월~금 부재자(휴가 · 반차 · 출장 …)를 요일 칸으로 보여 준다. */
 @Composable
 fun ScheduleScreen(
     viewModel: ScheduleViewModel,
@@ -91,7 +91,7 @@ fun ScheduleScreen(
         ) {
             val lastSync = state.lastSyncAt
             PageHeader(
-                title = "일정",
+                title = "출근",
                 subtitle = "$CALENDAR_NAME 공용 캘린더 · 사무실/재택 제외",
                 syncLabel = if (state.lastSyncFailed) "마지막 동기화 · 실패" else "마지막 동기화",
                 syncValue = lastSync?.let { formatSyncTime(it, Clock.System.now()) } ?: "아직 동기화 안 함",
