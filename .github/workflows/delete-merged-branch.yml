@@ -1,0 +1,54 @@
+name: Delete merged branch
+
+# dev/vX.Y.Z 로 머지된 PR 의 head 브랜치(작업 브랜치)를 지운다.
+# 레포 설정의 「Automatically delete head branches」 는 쓰지 않는다 — 그 설정은 base 와 상관없이 head 를 지워서
+# dev/vX.Y.Z → release PR 을 머지하면 dev 브랜치까지 지운다. 이 워크플로는 base 가 dev/** 인 PR 만 본다.
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - 'dev/**'
+
+jobs:
+  delete:
+    name: Delete head branch
+    # fork 에서 온 PR 의 브랜치는 이 레포에 없다.
+    if: github.event.pull_request.merged && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Delete head branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          # 장기 브랜치는 head 여도 지우지 않는다.
+          case "$HEAD_REF" in
+            dev/*|release)
+              echo "$HEAD_REF 는 장기 브랜치라 지우지 않는다"
+              exit 0
+              ;;
+          esac
+          # 이 브랜치를 base 나 head 로 둔 열린 PR 이 있으면 지우지 않는다 — 지우면 그 PR 이 닫힌다.
+          OPEN=$( { gh pr list --repo "$GITHUB_REPOSITORY" --base "$HEAD_REF" --state open --json number -q '.[].number'
+                    gh pr list --repo "$GITHUB_REPOSITORY" --head "$HEAD_REF" --state open --json number -q '.[].number'; } |
+                  sed 's/^/#/' | paste -sd, -)
+          if [ -n "$OPEN" ]; then
+            echo "::warning::$HEAD_REF 를 쓰는 열린 PR($OPEN)이 있어 지우지 않는다"
+            exit 0
+          fi
+          # 경로 조각마다 인코딩한다 (브랜치 이름의 # 등).
+          REF=$(jq -rn --arg r "$HEAD_REF" '$r | split("/") | map(@uri) | join("/")')
+          if gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$REF" 2> "$RUNNER_TEMP/err"; then
+            echo "$HEAD_REF 삭제"
+          elif grep -q 'Reference does not exist' "$RUNNER_TEMP/err"; then
+            echo "$HEAD_REF 는 이미 없다"
+          else
+            cat "$RUNNER_TEMP/err" >&2
+            exit 1
+          fi
