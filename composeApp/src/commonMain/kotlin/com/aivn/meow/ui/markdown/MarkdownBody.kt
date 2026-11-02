@@ -111,7 +111,11 @@ internal fun MarkdownBody(markdown: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** 이미지 주소를 기존 [loadImageBitmap] 으로 받아 그린다. 실패하면 깨진 이미지 아이콘을 보여준다. */
+/**
+ * 이미지 주소를 기존 [loadImageBitmap] 으로 받아 그린다. 실패하면 깨진 이미지 아이콘을 보여준다.
+ * #172 GitHub 첨부(`github.com/user-attachments/...`)는 [loadImageBitmap] 이 토큰을 붙여 받는다.
+ * 크기는 렌더러 기본값대로 원본 비율을 유지하고 본문 너비를 넘지 않는다.
+ */
 private object UrlImageTransformer : ImageTransformer {
     @Composable
     override fun transform(link: String): ImageData? {
