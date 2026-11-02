@@ -8,6 +8,9 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
@@ -56,6 +59,7 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.aivn.meow.cafeteria.CafeteriaPhoto
+import com.aivn.meow.ui.common.LocalCompactLayout
 import com.aivn.meow.ui.common.OpenOriginalButton
 import com.aivn.meow.ui.common.consumeClicks
 import kotlinx.datetime.DateTimeUnit
@@ -137,9 +141,14 @@ internal fun CafeteriaLightbox(
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClose),
         ) {
             LaunchedEffect(Unit) { focusRequester.requestFocus() }
+            // #165 폰: 사진을 화면 폭에 가깝게, 위 · 아래 버튼은 safe area 안쪽에.
+            val compact = LocalCompactLayout.current
 
             Column(
-                modifier = Modifier.align(Alignment.Center).padding(horizontal = 96.dp, vertical = 88.dp),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(horizontal = if (compact) 8.dp else 96.dp, vertical = if (compact) 72.dp else 88.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
@@ -159,15 +168,19 @@ internal fun CafeteriaLightbox(
                         modifier = imageModifier,
                     )
                     Text(text = "${index + 1} / ${photos.size}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Hint("← → 로 넘기기 · esc 로 닫기")
+                    Hint(if (compact) "‹ › 로 넘기기 · 바깥을 눌러 닫기" else "← → 로 넘기기 · esc 로 닫기")
                 } else {
                     ZoomableImage(photo = photo, contentDescription = title, modifier = imageModifier)
-                    Hint("esc 로 닫기 · 스크롤/핀치로 확대")
+                    Hint(if (compact) "바깥을 눌러 닫기 · 핀치로 확대" else "esc 로 닫기 · 스크롤/핀치로 확대")
                 }
             }
 
             Row(
-                modifier = Modifier.align(Alignment.TopStart).fillMaxWidth().padding(horizontal = 28.dp, vertical = 24.dp),
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(horizontal = if (compact) 16.dp else 28.dp, vertical = if (compact) 12.dp else 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -197,14 +210,14 @@ internal fun CafeteriaLightbox(
                     size = 48,
                     fontSize = 24,
                     onClick = { go(-1) },
-                    modifier = Modifier.align(Alignment.CenterStart).padding(start = 28.dp),
+                    modifier = Modifier.align(Alignment.CenterStart).padding(start = if (compact) 8.dp else 28.dp),
                 )
                 CircleButton(
                     text = "›",
                     size = 48,
                     fontSize = 24,
                     onClick = { go(1) },
-                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 28.dp),
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = if (compact) 8.dp else 28.dp),
                 )
             }
         }

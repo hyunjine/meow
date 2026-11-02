@@ -7,7 +7,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -43,7 +51,11 @@ import com.aivn.meow.ui.DashboardViewModel
 import com.aivn.meow.ui.MeowNotice
 import com.aivn.meow.ui.cafeteria.CafeteriaScreen
 import com.aivn.meow.ui.cafeteria.CafeteriaViewModel
+import com.aivn.meow.ui.common.ConnectLaterCard
+import com.aivn.meow.ui.common.LocalCompactLayout
+import com.aivn.meow.ui.common.pageContent
 import com.aivn.meow.ui.nav.AppDrawer
+import com.aivn.meow.ui.nav.BottomTabBar
 import com.aivn.meow.ui.pr.LocalMergeController
 import com.aivn.meow.ui.pr.MergeController
 import com.aivn.meow.ui.nav.AppScreen
@@ -70,6 +82,11 @@ fun App(
         onOpenUrl(OUTLOOK_WEB_CALENDAR_URL)
         OutlookOpenResult.Browser
     },
+    // #165 아이폰: 드로워 대신 하단 탭 바 · 좁은 폭 레이아웃.
+    compact: Boolean = false,
+    // #165 GitHub 토큰이 없으면(아이폰 1단계) GitHub 화면에 연결 안내만 보여 주고 조회하지 않는다.
+    githubConnected: Boolean = true,
+    initialScreen: AppScreen = AppScreen.GITHUB,
 ) {
     val scope = rememberCoroutineScope()
     val viewModel = remember(config.token) {
@@ -107,7 +124,7 @@ fun App(
         config.supabase?.let { RealtimeService(it) }
     }
 
-    LaunchedEffect(viewModel) { viewModel.start() }
+    LaunchedEffect(viewModel) { if (githubConnected) viewModel.start() }
     LaunchedEffect(weeklyViewModel) { weeklyViewModel.start() }
     LaunchedEffect(cafeteriaViewModel) { cafeteriaViewModel.start() }
     LaunchedEffect(viewModel) {
@@ -119,8 +136,8 @@ fun App(
     val repoUniverse by viewModel.repoUniverse.collectAsState()
     val snapshot = (state as? DashboardUiState.Loaded)?.snapshot
     val viewerLogin = snapshot?.viewerLogin
-    // 앱은 항상 GitHub 화면으로 시작한다 (선택은 저장하지 않음)
-    var screen by remember { mutableStateOf(AppScreen.GITHUB) }
+    // 앱은 항상 GitHub 화면(아이폰은 [initialScreen])으로 시작한다 (선택은 저장하지 않음)
+    var screen by remember { mutableStateOf(initialScreen) }
     // 화면별 rememberSaveable 상태(탭 · 정렬 · 스크롤 등)를 화면 전환 후에도 유지
     val screenStateHolder = rememberSaveableStateHolder()
 
@@ -128,6 +145,7 @@ fun App(
     LaunchedEffect(snapshot?.fetchedAtIso) { mergeController.onDashboardRefreshed() }
 
     LaunchedEffect(realtimeService, viewerLogin) {
+        if (!githubConnected) return@LaunchedEffect
         val service = realtimeService ?: return@LaunchedEffect
         val login = viewerLogin ?: return@LaunchedEffect
         service.subscribeNotices(login).collect { notice ->
@@ -135,46 +153,83 @@ fun App(
         }
     }
 
-    MeowTheme {
-        Row(modifier = Modifier.fillMaxSize()) {
-            AppDrawer(
-                selected = screen,
-                onSelect = { selected ->
-                    screen = selected
-                    // 드로워로 들어올 때마다(같은 화면 다시 눌러도) 그 화면의 동기화 버튼과 같이 새로 불러온다.
-                    when (selected) {
-                        AppScreen.GITHUB -> viewModel.syncIfIdle()
-                        AppScreen.WEEKLY_REPORT -> weeklyViewModel.syncIfIdle()
-                        AppScreen.SCHEDULE -> scheduleViewModel.syncIfIdle()
-                        AppScreen.CAFETERIA -> cafeteriaViewModel.syncIfIdle()
+    val onSelectScreen = { selected: AppScreen ->
+        screen = selected
+        // 드로워 · 탭 바로 들어올 때마다(같은 화면 다시 눌러도) 그 화면의 동기화 버튼과 같이 새로 불러온다.
+        when (selected) {
+            AppScreen.GITHUB -> if (githubConnected) viewModel.syncIfIdle()
+            AppScreen.WEEKLY_REPORT -> weeklyViewModel.syncIfIdle()
+            AppScreen.SCHEDULE -> scheduleViewModel.syncIfIdle()
+            AppScreen.CAFETERIA -> cafeteriaViewModel.syncIfIdle()
+        }
+    }
+    val screenContent = @Composable {
+        screenStateHolder.SaveableStateProvider(screen.name) {
+            when (screen) {
+                AppScreen.GITHUB -> if (!githubConnected) {
+                    GithubConnectLater()
+                } else {
+                    CompositionLocalProvider(LocalMergeController provides mergeController) {
+                        Dashboard(
+                            state = state,
+                            onRefresh = { viewModel.refresh() },
+                            onOpenPr = { pr: PullRequest -> onOpenUrl(pr.url) },
+                            onOpenUrl = onOpenUrl,
+                            repoPrefs = repoPrefs,
+                            repoUniverse = repoUniverse,
+                            onToggleFavorite = viewModel::toggleFavorite,
+                            onToggleSidebarRepo = viewModel::toggleSidebarRepo,
+                            discussions = viewModel.discussions,
+                        )
                     }
-                },
-                viewerLogin = viewerLogin,
-                viewerInitials = snapshot?.viewerInitials,
-                avatarUrl = snapshot?.avatarUrl,
-            )
-            Box(modifier = Modifier.weight(1f).fillMaxHeight().background(MeowColors.Background)) {
-                screenStateHolder.SaveableStateProvider(screen.name) {
-                    when (screen) {
-                        AppScreen.GITHUB -> CompositionLocalProvider(LocalMergeController provides mergeController) {
-                            Dashboard(
-                                state = state,
-                                onRefresh = { viewModel.refresh() },
-                                onOpenPr = { pr: PullRequest -> onOpenUrl(pr.url) },
-                                onOpenUrl = onOpenUrl,
-                                repoPrefs = repoPrefs,
-                                repoUniverse = repoUniverse,
-                                onToggleFavorite = viewModel::toggleFavorite,
-                                onToggleSidebarRepo = viewModel::toggleSidebarRepo,
-                                discussions = viewModel.discussions,
-                            )
-                        }
-                        AppScreen.WEEKLY_REPORT -> WeeklyReportScreen(viewModel = weeklyViewModel, onOpenUrl = onOpenUrl)
-                        AppScreen.SCHEDULE -> ScheduleScreen(viewModel = scheduleViewModel, onOpenOutlookCalendar = onOpenOutlookCalendar)
-                        AppScreen.CAFETERIA -> CafeteriaScreen(viewModel = cafeteriaViewModel, onOpenUrl = onOpenUrl)
+                }
+                AppScreen.WEEKLY_REPORT -> WeeklyReportScreen(viewModel = weeklyViewModel, onOpenUrl = onOpenUrl)
+                AppScreen.SCHEDULE -> ScheduleScreen(viewModel = scheduleViewModel, onOpenOutlookCalendar = onOpenOutlookCalendar)
+                AppScreen.CAFETERIA -> CafeteriaScreen(viewModel = cafeteriaViewModel, onOpenUrl = onOpenUrl)
+            }
+        }
+    }
+
+    MeowTheme {
+        CompositionLocalProvider(LocalCompactLayout provides compact) {
+            if (compact) {
+                // #165 아이폰: 위 · 좌우 safe area 안에 화면, 아래에 하단 탭 바(홈 인디케이터 여백 포함).
+                Column(modifier = Modifier.fillMaxSize().background(MeowColors.Background)) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
+                    ) {
+                        screenContent()
+                    }
+                    BottomTabBar(selected = screen, onSelect = onSelectScreen)
+                }
+            } else {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    AppDrawer(
+                        selected = screen,
+                        onSelect = onSelectScreen,
+                        viewerLogin = viewerLogin,
+                        viewerInitials = snapshot?.viewerInitials,
+                        avatarUrl = snapshot?.avatarUrl,
+                    )
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight().background(MeowColors.Background)) {
+                        screenContent()
                     }
                 }
             }
+        }
+    }
+}
+
+/** #165 GitHub 토큰 없이 연 아이폰 앱의 GitHub 화면. 토큰 입력 · 기기 로그인은 2단계. */
+@Composable
+private fun GithubConnectLater() {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Column(modifier = Modifier.pageContent(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            Text(text = "GitHub", color = MeowColors.TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            ConnectLaterCard(emoji = "🐙", title = "GitHub 계정이 연결되지 않았어요")
         }
     }
 }

@@ -3,9 +3,12 @@ package com.aivn.meow.ui.weekly
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -59,6 +62,9 @@ import com.aivn.meow.ui.EmptyStateCard
 import com.aivn.meow.ui.common.MeowType
 import com.aivn.meow.ui.common.OpenOriginalButton
 import com.aivn.meow.ui.common.PageHeader
+import com.aivn.meow.ms.msLoginSupported
+import com.aivn.meow.ui.common.ConnectLaterCard
+import com.aivn.meow.ui.common.LocalCompactLayout
 import com.aivn.meow.ui.common.pageContent
 import com.aivn.meow.weekly.MyWeeklyRow
 import com.aivn.meow.weekly.WeekDoc
@@ -107,6 +113,8 @@ fun WeeklyReportScreen(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 when {
+                    connected == null && !showCached && !msLoginSupported ->
+                        ConnectLaterCard(emoji = "🔗", title = "Microsoft 계정이 연결되지 않았어요")
                     connected == null && !showCached -> ConnectCard(auth = auth, onConnect = viewModel::signIn)
                     state.reportName == null || state.editingName -> ReportNameCard(
                         initialName = state.reportName,
@@ -249,11 +257,14 @@ private fun ReportNameCard(initialName: String?, onSave: (String) -> Unit, onCan
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun AccountLine(upn: String, reportName: String?, onChangeName: () -> Unit, onSignOut: () -> Unit) {
-    Row(
+    // #165 폰에서는 줄이 넘치면 다음 줄로 내린다.
+    FlowRow(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp, if (LocalCompactLayout.current) Alignment.Start else Alignment.End),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
     ) {
         val muted = MeowType.Meta.copy(color = MeowColors.TextTertiary)
         Text("연결됨 · $upn", style = muted)
@@ -278,17 +289,12 @@ private fun ReportBody(
 ) {
     val content = state.content
     val showWeeks = content is WeeklyContent.Found || content is WeeklyContent.NotFound
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-        if (showWeeks) {
-            WeekList(
-                state = state,
-                onSelectPast = viewModel::selectPastWeek,
-                onSelectThisWeek = viewModel::clearPastWeek,
-                modifier = Modifier.width(264.dp),
-            )
-        }
+    // #165 폰: 주차 목록을 문서 카드 위 가로 칩 줄로 두고 한 열로 쌓는다.
+    val compact = LocalCompactLayout.current
+    val body = @Composable { weekList: @Composable () -> Unit, documentModifier: Modifier ->
+        if (showWeeks) weekList()
         val selectedPast = state.selectedPast.takeIf { showWeeks }
-        Box(modifier = Modifier.weight(1f)) {
+        Box(modifier = documentModifier) {
             if (selectedPast != null) {
                 PastWeekCard(
                     selection = selectedPast,
@@ -349,10 +355,91 @@ private fun ReportBody(
             }
         }
     }
+    if (compact) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            body(
+                {
+                    WeekChips(
+                        state = state,
+                        onSelectPast = viewModel::selectPastWeek,
+                        onSelectThisWeek = viewModel::clearPastWeek,
+                    )
+                },
+                Modifier.fillMaxWidth(),
+            )
+        }
+    } else {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            body(
+                {
+                    WeekList(
+                        state = state,
+                        onSelectPast = viewModel::selectPastWeek,
+                        onSelectThisWeek = viewModel::clearPastWeek,
+                        modifier = Modifier.width(264.dp),
+                    )
+                },
+                Modifier.weight(1f),
+            )
+        }
+    }
 }
 
 /** 주차 목록에 보일 한 줄. 이번 주 문서를 아직 못 찾았으면 [doc] 이 null 인 자리 항목. */
 private data class WeekItem(val week: Int, val doc: WeekDoc?)
+
+/** 주차 목록 한 줄을 그리는 데 필요한 값. */
+private data class WeekEntry(
+    val week: Int,
+    val doc: WeekDoc?,
+    val isThisWeek: Boolean,
+    val badge: Pair<String, Color>?,
+    val range: String,
+    val highlighted: Boolean,
+)
+
+private fun weekEntries(state: WeeklyUiState): List<WeekEntry> {
+    val items = buildList {
+        if (state.weeks.none { it.week == state.currentWeek }) add(WeekItem(state.currentWeek, null))
+        state.weeks.forEach { add(WeekItem(it.week, it)) }
+    }.take(WeeklyReportViewModel.WEEK_LIST_SIZE)
+    val found = state.content as? WeeklyContent.Found
+    val year = Clock.System.todayIn(TimeZone.of("Asia/Seoul")).year
+    val selectedId = state.selectedPast?.doc?.itemId
+    return items.map { item ->
+        val isThisWeek = item.week == state.currentWeek
+        val badge: Pair<String, Color>? = when {
+            !isThisWeek -> when (state.weekStatus[item.doc?.itemId]) {
+                WeekRowStatus.Done -> "반영 완료" to MeowColors.Success
+                WeekRowStatus.Empty -> "미작성" to MeowColors.Grey
+                null -> null
+            }
+            found == null -> "메일 대기" to MeowColors.Warning
+            found.row.results.isNotEmpty() -> "반영 완료" to MeowColors.Success
+            found.resultIsDraft -> "초안" to MeowColors.Warning
+            else -> "미작성" to MeowColors.Grey
+        }
+        val monday = isoWeekMonday(year, item.week)
+        val friday = monday.plus(4, DateTimeUnit.DAY)
+        WeekEntry(
+            week = item.week,
+            doc = item.doc,
+            isThisWeek = isThisWeek,
+            badge = badge,
+            range = "${monday.month.number}/${monday.day} – ${friday.month.number}/${friday.day}",
+            // 고른 지난 주차가 있으면 그 줄을, 없으면 이번 주 줄을 강조한다.
+            highlighted = if (selectedId != null) !isThisWeek && item.doc?.itemId == selectedId else isThisWeek,
+        )
+    }
+}
+
+/** 주차를 누를 수 있는지 · 눌렀을 때 할 일. 이번 주는 지난 주차를 보고 있을 때만 돌아갈 수 있다. */
+private fun WeekEntry.clickable(state: WeeklyUiState): Boolean =
+    if (isThisWeek) state.selectedPast != null else doc != null
+
+private fun WeekEntry.select(onSelectPast: (WeekDoc) -> Unit, onSelectThisWeek: () -> Unit) {
+    if (isThisWeek) onSelectThisWeek() else doc?.let(onSelectPast)
+}
 
 @Composable
 private fun WeekList(
@@ -361,64 +448,65 @@ private fun WeekList(
     onSelectThisWeek: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val items = buildList {
-        if (state.weeks.none { it.week == state.currentWeek }) add(WeekItem(state.currentWeek, null))
-        state.weeks.forEach { add(WeekItem(it.week, it)) }
-    }.take(WeeklyReportViewModel.WEEK_LIST_SIZE)
-    val found = state.content as? WeeklyContent.Found
-    val year = Clock.System.todayIn(TimeZone.of("Asia/Seoul")).year
-    val selectedId = state.selectedPast?.doc?.itemId
     Column(
         modifier = modifier.glassSurface(corner = 20.dp).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        items.forEach { item ->
-            val isThisWeek = item.week == state.currentWeek
-            val badge: Pair<String, Color>? = when {
-                !isThisWeek -> when (state.weekStatus[item.doc?.itemId]) {
-                    WeekRowStatus.Done -> "반영 완료" to MeowColors.Success
-                    WeekRowStatus.Empty -> "미작성" to MeowColors.Grey
-                    null -> null
-                }
-                found == null -> "메일 대기" to MeowColors.Warning
-                found.row.results.isNotEmpty() -> "반영 완료" to MeowColors.Success
-                found.resultIsDraft -> "초안" to MeowColors.Warning
-                else -> "미작성" to MeowColors.Grey
-            }
-            val monday = isoWeekMonday(year, item.week)
-            val friday = monday.plus(4, DateTimeUnit.DAY)
-            val doc = item.doc
-            // 고른 지난 주차가 있으면 그 줄을, 없으면 이번 주 줄을 강조한다.
-            val highlighted = if (selectedId != null) !isThisWeek && doc?.itemId == selectedId else isThisWeek
+        weekEntries(state).forEach { entry ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(if (highlighted) MeowColors.BrandSubtle.copy(alpha = 0.08f) else Color.Transparent)
-                    .clickable(enabled = if (isThisWeek) selectedId != null else doc != null) {
-                        if (isThisWeek) onSelectThisWeek() else doc?.let(onSelectPast)
-                    }
+                    .background(if (entry.highlighted) MeowColors.BrandSubtle.copy(alpha = 0.08f) else Color.Transparent)
+                    .clickable(enabled = entry.clickable(state)) { entry.select(onSelectPast, onSelectThisWeek) }
                     .padding(horizontal = 12.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        text = "Week ${item.week}" + if (isThisWeek) " · 이번 주" else "",
+                        text = "Week ${entry.week}" + if (entry.isThisWeek) " · 이번 주" else "",
                         style = MeowType.Title,
-                        color = if (isThisWeek) MeowColors.Brand else MeowColors.TextPrimary,
+                        color = if (entry.isThisWeek) MeowColors.Brand else MeowColors.TextPrimary,
                         fontWeight = FontWeight.Bold,
                     )
-                    Text(
-                        text = "${monday.month.number}/${monday.day} – ${friday.month.number}/${friday.day}",
-                        style = MeowType.Meta,
-                        color = MeowColors.TextTertiary,
-                    )
+                    Text(text = entry.range, style = MeowType.Meta, color = MeowColors.TextTertiary)
                 }
-                if (badge != null) {
-                    StatusBadge(text = badge.first, color = badge.second)
+                if (entry.badge != null) {
+                    StatusBadge(text = entry.badge.first, color = entry.badge.second)
                 } else {
                     Text("—", style = MeowType.Meta, color = MeowColors.TextTertiary)
                 }
+            }
+        }
+    }
+}
+
+/** #165 폰: 주차 목록을 가로로 스크롤되는 칩으로. */
+@Composable
+private fun WeekChips(state: WeeklyUiState, onSelectPast: (WeekDoc) -> Unit, onSelectThisWeek: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        weekEntries(state).forEach { entry ->
+            val shape = RoundedCornerShape(14.dp)
+            Column(
+                modifier = Modifier
+                    .clip(shape)
+                    .background(if (entry.highlighted) MeowColors.BrandSubtle.copy(alpha = 0.10f) else MeowColors.Surface)
+                    .border(1.dp, if (entry.highlighted) MeowColors.Brand.copy(alpha = 0.5f) else MeowColors.GlassBorder, shape)
+                    .clickable(enabled = entry.clickable(state)) { entry.select(onSelectPast, onSelectThisWeek) }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = "W${entry.week}" + if (entry.isThisWeek) " · 이번 주" else "",
+                    style = MeowType.Meta,
+                    color = if (entry.isThisWeek) MeowColors.Brand else MeowColors.TextPrimary,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(text = entry.range, style = MeowType.Badge, color = MeowColors.TextTertiary)
+                entry.badge?.let { StatusBadge(text = it.first, color = it.second) }
             }
         }
     }

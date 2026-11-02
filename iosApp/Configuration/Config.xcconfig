@@ -1,0 +1,4 @@
+// #165 아이폰 앱 공통 설정. 다른 Apple 개발 팀으로 빌드하려면 TEAM_ID 만 바꾸면 된다.
+TEAM_ID=YCCX589JXZ
+BUNDLE_ID=com.aivn.meow
+APP_NAME=Meow

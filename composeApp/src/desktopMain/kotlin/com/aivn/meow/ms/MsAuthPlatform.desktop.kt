@@ -86,6 +86,8 @@ private const val RESPONSE_HTML = """<!doctype html><html lang="ko"><head><meta 
 
 actual fun defaultRefreshTokenStore(): RefreshTokenStore = KeychainRefreshTokenStore()
 
+actual val msLoginSupported: Boolean = true
+
 /**
  * macOS 키체인(generic password, 서비스 [service]) 에 refresh token 을 둔다.
  * 저장은 `security -i` 의 표준 입력으로 명령을 넘겨 토큰이 프로세스 인자(ps)에 드러나지 않게 한다.

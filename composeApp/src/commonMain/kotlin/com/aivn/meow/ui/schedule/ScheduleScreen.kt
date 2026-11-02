@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aivn.meow.ms.MsAuthState
@@ -51,6 +52,9 @@ import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.theme.glassSurface
 import com.aivn.meow.ui.EmptyStateCard
 import com.aivn.meow.ui.common.PageHeader
+import com.aivn.meow.ms.msLoginSupported
+import com.aivn.meow.ui.common.ConnectLaterCard
+import com.aivn.meow.ui.common.LocalCompactLayout
 import com.aivn.meow.ui.common.pageContent
 import com.aivn.meow.ui.weekly.formatSyncTime
 import kotlinx.coroutines.launch
@@ -102,7 +106,11 @@ fun ScheduleScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
             if (!connected) {
-                ConnectCard(auth = auth, onConnect = viewModel::signIn)
+                if (msLoginSupported) {
+                    ConnectCard(auth = auth, onConnect = viewModel::signIn)
+                } else {
+                    ConnectLaterCard(emoji = "📅", title = "Microsoft 계정이 연결되지 않았어요")
+                }
                 return@Column
             }
             WeekNavigator(
@@ -150,6 +158,27 @@ private fun WeekNavigator(
     onOpenOutlook: () -> Unit,
 ) {
     val friday = monday.plus(4, DateTimeUnit.DAY)
+    if (LocalCompactLayout.current) {
+        // #165 폰: 주 이동 줄과 버튼 줄을 나눈다.
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                ArrowButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "이전 주", onPrevious)
+                Text(
+                    text = "${monday.month.number}/${monday.day} – ${friday.month.number}/${friday.day}",
+                    color = MeowColors.TextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(text = "W${monday.isoWeekNumber()}", color = MeowColors.TextTertiary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                ArrowButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, "다음 주", onNext)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                NavTextButton("이번 주", onThisWeek)
+                NavTextButton("Outlook 일정 ↗", onOpenOutlook)
+            }
+        }
+        return
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -213,7 +242,25 @@ private fun ArrowButton(icon: ImageVector, description: String, onClick: () -> U
 @Composable
 private fun WeekColumns(week: ScheduleWeek, today: LocalDate) {
     // #155 요일 칸의 이름 · 메모를 드래그로 골라 ⌘C 로 복사할 수 있게 한다 (칸 안에 누르는 곳은 없다).
+    val compact = LocalCompactLayout.current
     SelectionContainer(modifier = Modifier.fillMaxWidth()) {
+        if (compact) {
+            // #165 폰: 요일 칸을 위아래로 쌓는다 (칸 최소 높이 없이 내용만큼).
+            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                (0 until 5).forEach { i ->
+                    val date = week.monday.plus(i, DateTimeUnit.DAY)
+                    DayColumn(
+                        letter = DayLetters[i],
+                        date = date,
+                        isToday = date == today,
+                        entries = week.days[date].orEmpty(),
+                        modifier = Modifier.fillMaxWidth(),
+                        minHeight = 0.dp,
+                    )
+                }
+            }
+            return@SelectionContainer
+        }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             (0 until 5).forEach { i ->
                 val date = week.monday.plus(i, DateTimeUnit.DAY)
@@ -230,14 +277,21 @@ private fun WeekColumns(week: ScheduleWeek, today: LocalDate) {
 }
 
 @Composable
-private fun DayColumn(letter: String, date: LocalDate, isToday: Boolean, entries: List<AbsenceEntry>, modifier: Modifier) {
+private fun DayColumn(
+    letter: String,
+    date: LocalDate,
+    isToday: Boolean,
+    entries: List<AbsenceEntry>,
+    modifier: Modifier,
+    minHeight: Dp = 420.dp,
+) {
     val shape = RoundedCornerShape(14.dp)
     val headerColor = if (isToday) Color.White else MeowColors.TextPrimary
     val subColor = if (isToday) Color.White else MeowColors.TextTertiary
     val people = entries.mapNotNull { it.name }.distinct().size
     Column(
         modifier = modifier
-            .heightIn(min = 420.dp)
+            .heightIn(min = minHeight)
             .clip(shape)
             .background(Color.White)
             .border(if (isToday) 2.dp else 1.dp, if (isToday) MeowColors.Brand else CardBorder, shape)
