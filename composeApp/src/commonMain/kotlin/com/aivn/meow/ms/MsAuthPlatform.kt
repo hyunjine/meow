@@ -12,15 +12,16 @@ expect fun randomUrlSafeString(byteCount: Int = 32): String
 data class LoopbackResult(val redirectUri: String, val params: Map<String, String>)
 
 /**
- * 임의 포트의 `http://localhost:{port}` 루프백 서버를 띄우고, [buildAuthorizeUrl] 로 만든 로그인 페이지를
+ * 데스크톱: 임의 포트의 `http://localhost:{port}` 루프백 서버를 띄우고, [buildAuthorizeUrl] 로 만든 로그인 페이지를
  * 기본 브라우저로 연 뒤 첫 리디렉션을 기다린다. 코루틴이 취소되면 서버도 닫는다.
+ * #165 iOS: 루프백 대신 ASWebAuthenticationSession 으로 열고 `msauth.com.aivn.meow://auth` 리디렉션을 받는다.
  */
 expect suspend fun runLoopbackAuthorization(buildAuthorizeUrl: (redirectUri: String) -> String): LoopbackResult
 
 /** 저장된 refresh token 과 그 계정(UPN). */
 data class StoredRefreshToken(val account: String, val refreshToken: String)
 
-/** refresh token 보관소. 기본 구현은 macOS 키체인([defaultRefreshTokenStore]). */
+/** refresh token 보관소. 기본 구현은 macOS · iOS 키체인(서비스 `meow-ms-graph`, [defaultRefreshTokenStore]). */
 interface RefreshTokenStore {
     fun load(): StoredRefreshToken?
     fun save(account: String, refreshToken: String)
@@ -29,5 +30,5 @@ interface RefreshTokenStore {
 
 expect fun defaultRefreshTokenStore(): RefreshTokenStore
 
-/** #165 이 플랫폼에서 Microsoft 로그인을 할 수 있는지. iOS 는 2단계 전까지 false (화면에 안내만 보여 준다). */
+/** #165 이 플랫폼에서 Microsoft 로그인을 할 수 있는지. false 면 화면에 연결 안내 카드만 보여 준다 (지금은 데스크톱 · iOS 모두 true). */
 expect val msLoginSupported: Boolean

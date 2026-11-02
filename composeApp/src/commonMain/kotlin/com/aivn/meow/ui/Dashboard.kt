@@ -62,6 +62,7 @@ import com.aivn.meow.ui.card.CardDiscussionStore
 import com.aivn.meow.ui.card.LocalCardDiscussions
 import com.aivn.meow.ui.common.LocalCompactLayout
 import com.aivn.meow.ui.common.MeowType
+import com.aivn.meow.ui.common.LocalOpenSettings
 import com.aivn.meow.ui.common.PageHeader
 import com.aivn.meow.ui.common.pageBodyWidth
 import com.aivn.meow.ui.common.pageContent
@@ -563,6 +564,20 @@ private fun CenteredError(failure: LoadFailure, onRetry: () -> Unit) {
             }
         }
         RetryButton(onClick = onRetry, modifier = Modifier.padding(top = 20.dp))
+        // #165 아이폰: 토큰을 바로 바꿀 수 있게 설정 화면으로 보낸다.
+        LocalOpenSettings.current?.let { openSettings ->
+            Text(
+                text = "설정에서 토큰 바꾸기",
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(onClick = openSettings)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                style = MeowType.Meta,
+                color = MeowColors.Brand,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
     }
 }
 
