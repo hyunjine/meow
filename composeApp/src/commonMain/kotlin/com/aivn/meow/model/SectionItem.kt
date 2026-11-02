@@ -29,6 +29,8 @@ data class SectionItem(
     val comment: CommentMeta? = null,
     /** #127 `owner/name` (예: `hyunjine/meow`). 사이드바 체크 필터 기준. [repo] 는 표시용 짧은 이름. */
     val repoFullName: String = repo,
+    /** #168 PR 의 head → base 브랜치. 이슈 · 브랜치를 조회하지 않은 항목은 null. */
+    val branches: PrBranches? = null,
 )
 
 /** #84 새 댓글이 달린 곳. [label] 은 카드의 출처 칩 문구. */

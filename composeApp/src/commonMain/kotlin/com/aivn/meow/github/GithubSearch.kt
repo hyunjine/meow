@@ -1,5 +1,6 @@
 package com.aivn.meow.github
 
+import com.aivn.meow.model.PrBranches
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -20,7 +21,19 @@ interface SearchItemFields {
     val author: Author?
     val repository: RepositoryNode
     val labels: LabelConnection
+    /** #168 PR 전용 브랜치 정보. 이슈 · 선택하지 않은 쿼리는 null. */
+    val headRefName: String?
+    val baseRefName: String?
+    val isCrossRepository: Boolean
+    val headRepositoryOwner: OwnerLogin?
 }
+
+@Serializable
+data class OwnerLogin(val login: String)
+
+/** #168 PR 의 head → base. 이슈면 null. */
+val SearchItemFields.prBranches: PrBranches?
+    get() = PrBranches.of(headRefName, baseRefName, isCrossRepository, headRepositoryOwner?.login)
 
 /** 공통 필드만 받는 기본 검색 노드. */
 @Serializable
@@ -34,6 +47,10 @@ data class SearchItemNode(
     override val author: Author? = null,
     override val repository: RepositoryNode,
     override val labels: LabelConnection,
+    override val headRefName: String? = null,
+    override val baseRefName: String? = null,
+    override val isCrossRepository: Boolean = false,
+    override val headRepositoryOwner: OwnerLogin? = null,
 ) : SearchItemFields
 
 @Serializable
@@ -58,6 +75,17 @@ const val SEARCH_ITEM_FIELDS = """
     labels(first: 10) { nodes { name color } }
 """
 
+/** #168 PR 노드에만 붙이는 head → base 브랜치 필드. */
+const val PR_BRANCH_FIELDS = """
+    headRefName
+    baseRefName
+    isCrossRepository
+    headRepositoryOwner { login }
+"""
+
+/** PR 노드 기본 선택 필드 = 공통 + 브랜치. */
+const val PR_SEARCH_ITEM_FIELDS = SEARCH_ITEM_FIELDS + PR_BRANCH_FIELDS
+
 /**
  * #127 대시보드 검색 범위: 조직 레포 + 내 개인 레포. GitHub 검색은 여러 owner 한정자를 OR 로 묶는다
  * (`org:Team-AIVN user:@me` = Team-AIVN 레포 또는 내 소유 레포). `@me` 는 토큰 주인 login 과 같다.
@@ -72,7 +100,7 @@ suspend fun <T> GithubClient.search(
     searchQuery: String,
     nodeSerializer: KSerializer<T>,
     issueFields: String = SEARCH_ITEM_FIELDS,
-    pullRequestFields: String = SEARCH_ITEM_FIELDS,
+    pullRequestFields: String = PR_SEARCH_ITEM_FIELDS,
     first: Int = DEFAULT_SEARCH_SIZE,
 ): SearchConnection<T> {
     val query = """

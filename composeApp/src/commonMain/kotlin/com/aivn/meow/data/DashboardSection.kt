@@ -2,6 +2,7 @@ package com.aivn.meow.data
 
 import com.aivn.meow.github.GithubClient
 import com.aivn.meow.github.SearchItemFields
+import com.aivn.meow.github.prBranches
 import com.aivn.meow.model.ItemKind
 import com.aivn.meow.model.Label
 import com.aivn.meow.model.SectionItem
@@ -93,5 +94,6 @@ fun SearchItemFields.toSectionItem(
         detail = detail,
         body = body,
         repoFullName = repository.nameWithOwner,
+        branches = prBranches,
     )
 }

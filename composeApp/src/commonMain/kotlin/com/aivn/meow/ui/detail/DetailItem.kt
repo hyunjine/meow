@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.Color
 import com.aivn.meow.data.DiscussionTarget
 import com.aivn.meow.model.CiStatus
 import com.aivn.meow.model.ItemKind
+import com.aivn.meow.model.PrBranches
 import com.aivn.meow.model.PullRequest
 import com.aivn.meow.model.SectionItem
 import com.aivn.meow.theme.MeowColors
@@ -35,6 +36,8 @@ internal data class DetailItem(
     val kindLabel: StatusChip? = null,
     val showDiscussion: Boolean = false,
     val mergeable: Boolean = false,
+    /** #168 PR 의 head → base. 이슈는 null. */
+    val branches: PrBranches? = null,
 ) {
     val discussionTarget: DiscussionTarget
         get() = DiscussionTarget(
@@ -64,6 +67,7 @@ internal fun PullRequest.toDetailItem(): DetailItem = DetailItem(
         labels.forEach { add(StatusChip(it.text, it.color)) }
     },
     showDiscussion = true,
+    branches = branches,
 )
 
 internal fun SectionItem.toDetailItem(showDiscussion: Boolean, showKind: Boolean, mergeable: Boolean): DetailItem = DetailItem(
@@ -87,6 +91,7 @@ internal fun SectionItem.toDetailItem(showDiscussion: Boolean, showKind: Boolean
     },
     showDiscussion = showDiscussion,
     mergeable = mergeable,
+    branches = branches.takeIf { kind == ItemKind.PullRequest },
 )
 
 /** CI 체크가 아예 없는 PR 은 칩을 숨긴다 (내 PR 현황과 같은 규칙). */

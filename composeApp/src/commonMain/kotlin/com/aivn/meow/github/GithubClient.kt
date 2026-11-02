@@ -119,6 +119,7 @@ class GithubClient(
                 author { login avatarUrl }
                 repository { nameWithOwner }
                 labels(first: 10) { nodes { name color } }
+                $PR_BRANCH_FIELDS
                 commits(last: 1) {
                   nodes {
                     commit {

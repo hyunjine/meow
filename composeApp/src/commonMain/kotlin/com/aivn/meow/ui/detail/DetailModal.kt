@@ -1,6 +1,7 @@
 package com.aivn.meow.ui.detail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -41,6 +42,8 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -52,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import com.aivn.meow.model.PrBranches
 import com.aivn.meow.theme.MeowColors
 import com.aivn.meow.ui.PillChip
 import com.aivn.meow.ui.StatusChipView
@@ -162,6 +166,7 @@ private fun ModalContent(item: DetailItem, onOpenOriginal: () -> Unit, onClose: 
             maxLines = 3,
             overflow = TextOverflow.Ellipsis,
         )
+        item.branches?.let { BranchChips(it) }
         val chips = listOfNotNull(item.kindLabel) + item.chips
         if (chips.isNotEmpty()) {
             FlowRow(
@@ -212,4 +217,36 @@ private fun Header(item: DetailItem, onOpenOriginal: () -> Unit, onClose: () -> 
             Icon(Icons.Default.Close, contentDescription = "닫기", tint = MeowColors.TextTertiary, modifier = Modifier.size(18.dp))
         }
     }
+}
+
+private val BranchChipShape = RoundedCornerShape(6.dp)
+private val BranchTextStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 18.sp)
+
+/** #168 제목 아래 `head` → `base` 브랜치 칩 한 쌍. 전체 이름을 보여주고, 선택 · 복사할 수 있다. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BranchChips(branches: PrBranches) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        BranchChip(branches.head)
+        Text(text = "→", style = BranchTextStyle, color = MeowColors.TextTertiary)
+        BranchChip(branches.base)
+    }
+}
+
+@Composable
+private fun BranchChip(name: String) {
+    Text(
+        text = name,
+        modifier = Modifier
+            .clip(BranchChipShape)
+            .background(MeowColors.TextTertiary.copy(alpha = 0.08f))
+            .border(1.dp, MeowColors.TextTertiary.copy(alpha = 0.22f), BranchChipShape)
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        style = BranchTextStyle,
+        color = MeowColors.TextSecondary,
+    )
 }
